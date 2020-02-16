@@ -3,9 +3,7 @@ from app import app
 from exts import db
 from flask_migrate import Migrate, MigrateCommand
 import cms.models as cms_models
-import front.models as front_models
-import common.models as common_models
-from exceptions import DIYException
+from common.exceptions import DIYException
 
 
 manager = Manager(app)

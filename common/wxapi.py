@@ -1,6 +1,6 @@
 from common.wxdecrypt.WXBizDataCrypt import WXBizDataCrypt
 from conf import APP_ID, APP_SECRET_KEY, code2Session_URL
-from exceptions import DIYException
+from common.exceptions import DIYException
 import requests
 
 
