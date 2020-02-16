@@ -1,0 +1,1 @@
+from .wx_view import wx_bp
