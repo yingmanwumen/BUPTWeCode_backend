@@ -1,6 +1,7 @@
 from flask import Blueprint, request, g
 from exts import db
 from flask_restful import Resource, Api, fields, marshal_with
+from sqlalchemy import func
 from common.restful import Response, Data, success, server_error
 from .models import CMSUser, CMSPermission
 from .forms import LoginForm, ProfileForm, BoardForm
@@ -88,7 +89,7 @@ class LoginView(Resource):
 
                 # 返回正常的数据
                 data.token = token
-                data.user = self.generate_user(user)
+                data.user = self.generate_user(user)        # data.user = user
                 return Response.success(data=data)
             else:
                 # 没有这个用户，或者密码错误
@@ -177,44 +178,46 @@ class BoardView(Resource):
     resource_fields = {
         "code": fields.Integer,
         "message": fields.String,
-        "data": fields.List(fields.Nested({
-            "board_id": fields.Integer,     # 板块唯一标识
-            "name": fields.String,          # 板块名称
-            "desc": fields.String,          # 板块描述
-            "created": fields.Integer,      # 板块创建时间
-            "avatar_url": fields.String,    # 板块头像
-            "articles": fields.Integer      # 板块下所含文章数量
-        }))
+        "data": fields.Nested({
+            "boards": fields.List(fields.Nested({
+                "board_id": fields.Integer,     # 板块唯一标识
+                "name": fields.String,          # 板块名称
+                "desc": fields.String,          # 板块描述
+                "created": fields.Integer,      # 板块创建时间
+                "avatar_url": fields.String,    # 板块头像
+                "articles": fields.Integer      # 板块下所含文章数量
+            })),
+            "total": fields.Integer             # 板块总数
+        })
     }
 
     method_decorators = [login_required(CMSPermission.BOADER)]
 
     @marshal_with(resource_fields)
     def get(self):
-        data = []
-
-        # 先判断是否是删除视图的业务
-        delete_id = self.parse_args(request.args.get("delete", False))
-        if delete_id:
-            # 进入删除视图业务，获取对应删除板块
-            board = Board.query.filter_by(id=delete_id).first()
-            if board:
-                # 如果获取板块成功，设置板块的状态为0，表示不可见
-                board.status = 0
-                db.session.commit()
-                data.append(self.generate_board(board))
-                return Response.success(data=data)
-            else:
-                # 获取板块失败
-                return Response.server_error(message="数据库中找不到该板块")
-
-        # 如果不是删除视图的业务，获取status的值，即使get请求不含status，给status一个默认值1
-        status = self.parse_args(request.args.get("status", False)) or 1
+        """
+        负责返回板块的查询，接受三个参数
+        offset: 偏移，默认为0
+        limit: 数量，默认为10
+        status: 板块状态，默认查询状态status为1的板块
+        :return:
+        """
+        offset = int(request.args.get("offset", 0))
+        limit = int(request.args.get("limit", 10))
+        status = int(request.args.get("status", 1))
+        data = Data()
 
         # status的值用于筛选对应status值的boards，1为可见，0为不可见
-        boards = Board.query.filter_by(status=status).all()
-        for board in boards:
-            data.append(self.generate_board(board))
+        boards = Board.query.filter_by(status=status)
+        # 用切片筛选结果
+        res = boards[offset:offset+limit]
+
+        # 优化后的sql count函数
+        total = boards.with_entities(func.count(Board.id)).scalar()
+        data.total = total
+        data.boards = []
+        for board in res:
+            data.boards.append(self.generate_board(board))
         return Response.success(data=data)
 
     @marshal_with(resource_fields)
@@ -226,6 +229,7 @@ class BoardView(Resource):
             desc = form.desc.data
             avatar_url = form.avatar_url.data
             board_id = form.board_id.data
+            status = form.status.data
 
             if board_id:
                 # 如果表单的board_id不为0，说明这是一个编辑的请求，并获取相应的board
@@ -235,14 +239,17 @@ class BoardView(Resource):
                     board.name = name
                     board.desc = desc
                     board.avatar_url = avatar_url
+                    board.status = status
 
                     # 提交至数据库，并返回编辑后的新值
                     db.session.commit()
-                    data = [self.generate_board(board)]
+                    data = Data()
+                    data.boards = [self.generate_board(board)]
+                    data.total = 1
                     return Response.success(data=data)
                 else:
                     # 不存在该板块，返回错误
-                    return Response.server_error(message="数据库中找不到该板块")
+                    return Response.server_error(message="数据库中找不到该板块")  # source_error 404
             else:
                 # 如果表单的board_id为0，说明这是一个新建板块请求
                 # 新建一个板块，并提交到数据库
@@ -251,7 +258,9 @@ class BoardView(Resource):
                 db.session.commit()
 
                 # 返回新建的板块的值
-                data = [self.generate_board(board)]
+                data = Data()
+                data.boards = [self.generate_board(board)]
+                data.total = 1
                 return Response.success(data=data)
         else:
             # 表单验证失败，返回参数错误
@@ -276,7 +285,7 @@ class BoardView(Resource):
         data.desc = board.desc
         data.avatar_url = board.avatar_url
         data.created = board.created.timestamp()
-        data.articles = 0
+        data.articles = len(board.articles.all())
         return data
 
 

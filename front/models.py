@@ -14,3 +14,5 @@ class FrontUser(db.Model):
     # phone = db.Column(db.Integer)
     union_id = db.Column(db.String(100))
     created = db.Column(db.DateTime, default=datetime.now)
+
+    articles = db.relationship("Article", backref="author", lazy="dynamic")

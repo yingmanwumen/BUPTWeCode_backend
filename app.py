@@ -4,7 +4,7 @@ from flask_cors import CORS
 from exts import db
 
 from cms import cms_bp
-from front.views import wx_bp
+from front.views import wx_bp, common_bp, article_bp
 import config
 
 app = Flask(__name__)
@@ -13,6 +13,8 @@ CORS(app, supports_credentials=True)
 
 app.register_blueprint(cms_bp)
 app.register_blueprint(wx_bp)
+app.register_blueprint(common_bp)
+app.register_blueprint(article_bp)
 
 db.init_app(app)
 

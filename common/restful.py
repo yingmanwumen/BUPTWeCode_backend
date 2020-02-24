@@ -6,7 +6,7 @@ def raw_resp(code, message="", data={}):
 
 
 def token_error(message, data={}):
-    return jsonify(code=499, message=message, data=data)
+    return raw_resp(code=499, message=message, data=data)
 
 
 def success(data={}):

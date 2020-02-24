@@ -52,6 +52,6 @@ class login_required(object):
                 return restful.token_error(message=g.message)
             if g.user.has_permission(permission=self.permission):
                 return view(*args, **kwargs)
-            return restful.auth_error(message="您没有权限访问")
+            return restful.auth_error(message="您没有权限访问")        # restful.Response.auth_error
         return wrapper
 
