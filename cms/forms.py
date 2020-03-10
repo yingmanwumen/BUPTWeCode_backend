@@ -17,6 +17,6 @@ class ProfileForm(BaseForm):
 class BoardForm(BaseForm):
     name = StringField(validators=[Length(max=20, message="最大长度为20"), InputRequired(message="请输入板块名称")])
     desc = StringField(validators=[Length(max=200, message="最大长度为200"), InputRequired(message="请输入板块描述")])
-    avatar_url = StringField(validators=[URL(message="请输入正确格式的图片地址")])
+    avatar = StringField(validators=[InputRequired(message="请输入板块头像")])
     board_id = IntegerField(validators=[NumberRange(min=0), InputRequired(message="请输入板块id")])
     status = IntegerField(validators=[InputRequired(message="请输入板块status"), NumberRange(min=0, max=1)])

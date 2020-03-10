@@ -3,6 +3,7 @@ from flask_restful import Resource, Api, fields, marshal_with
 from common.restful import Response, Data
 from common.token import generate_token, TokenValidator
 from common.cache import MyRedis
+from common.hooks import hook_before
 from ..forms.wx_form import WXLoginForm, WXUserInfoForm
 from ..models import FrontUser
 from exts import db
@@ -114,13 +115,18 @@ class WXUserInfoView(Resource):
         if not form.validate():
             return Response.params_error(message=form.get_error())
 
-        # 获取表单的加密数据, 并且通过wxapi获得解密数据
-        encrypted_data = form.encryptedData.data
-        iv = form.iv.data
-        session_key, = g.cache.get_pointed(g.token, "session_key")
-        res = wxapi.get_user_info(session_key=session_key, encrypted_data=encrypted_data, iv=iv)
-        # print(res)
-        username, avatar_url, gender = res["nickName"], res["avatarUrl"], res["gender"]
+        # # 获取表单的加密数据, 并且通过wxapi获得解密数据
+        # encrypted_data = form.encryptedData.data
+        # iv = form.iv.data
+        # session_key, = g.cache.get_pointed(g.token, "session_key")
+        # res = wxapi.get_user_info(session_key=session_key, encrypted_data=encrypted_data, iv=iv)
+        # # print(res)
+        # username, avatar_url, gender = res["nickName"], res["avatarUrl"], res["gender"]
+        # 由于出错，暂时不用解密验证数据
+
+        username = form.nickName.data
+        avatar_url = form.avatarUrl.data
+        gender = form.gender.data
 
         # 通过新的解密数据, 更新用户信息
         user = g.user
@@ -143,25 +149,26 @@ api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
 
 @wx_bp.before_request
 def before_request():
-    """
-    若没有携带token，说明是新用户，直接跳过下属步骤
-    1。先从缓存中通过token的值来获取uid，进而获取用户的信息
-    2。如果缓存中没有，通过token解析获取uid，进而获取用户的信息
-    3。如果获取用户信息成功，说明是老用户
-    4。如果获取用户信息失败，说明老用户的登陆状态已经过期
-    :return:
-    """
-    token = request.headers.get("Z-Token")
-    g.cache = cache
-    if token:
-        res, user = token_validator.validate(token)
-        if res and user:
-            g.login = True
-            g.user = user
-            g.token = token
-        else:
-            g.login = False
-            g.message = "登陆状态已经过期"
-    else:
-        g.login = False
-        g.message = "新用户"
+    hook_before(token_validator, cache, no_user_msg="登陆状态已过期", no_token_msg="新用户")
+    # """
+    # 若没有携带token，说明是新用户，直接跳过下属步骤
+    # 1。先从缓存中通过token的值来获取uid，进而获取用户的信息
+    # 2。如果缓存中没有，通过token解析获取uid，进而获取用户的信息
+    # 3。如果获取用户信息成功，说明是老用户
+    # 4。如果获取用户信息失败，说明老用户的登陆状态已经过期
+    # :return:
+    # """
+    # token = request.headers.get("Z-Token")
+    # g.cache = cache
+    # if token:
+    #     res, user = token_validator.validate(token)
+    #     if res and user:
+    #         g.login = True
+    #         g.user = user
+    #         g.token = token
+    #     else:
+    #         g.login = False
+    #         g.message = "登陆状态已经过期"
+    # else:
+    #     g.login = False
+    #     g.message = "新用户"

@@ -8,7 +8,7 @@ class Board(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
     desc = db.Column(db.Text, nullable=False)
-    avatar_url = db.Column(db.String(255))
+    avatar = db.Column(db.String(255))
     created = db.Column(db.DateTime, default=datetime.now)
     status = db.Column(db.Integer, default=1)
 

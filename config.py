@@ -3,7 +3,7 @@ from conf import USERNAME, PWD, IPHOST, PORT, DBNAME
 
 DEBUG = True
 
-DB_URI = "mysql+pymysql://{username}:{pwd}@{host}:{port}/{db}".format(username=USERNAME, pwd=PWD, host=IPHOST, port=PORT, db=DBNAME)
+DB_URI = "mysql+pymysql://{username}:{pwd}@{host}:{port}/{db}?charset=utf8mb4".format(username=USERNAME, pwd=PWD, host=IPHOST, port=PORT, db=DBNAME)
 SQLALCHEMY_DATABASE_URI = DB_URI
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 

@@ -2,12 +2,14 @@ from flask import Blueprint, request, g
 from exts import db
 from flask_restful import Resource, Api, fields, marshal_with
 from sqlalchemy import func
-from common.restful import Response, Data, success, server_error
+from common.restful import *
 from .models import CMSUser, CMSPermission
 from .forms import LoginForm, ProfileForm, BoardForm
 from common.token import login_required, generate_token, TokenValidator
 from common.cache import MyRedis
 from common.models import Board
+from common.image_uploader import generate_uptoken
+from common.hooks import hook_before
 
 cms_bp = Blueprint("cms", __name__, url_prefix="/cms")
 api = Api(cms_bp)
@@ -44,22 +46,20 @@ class LoginView(Resource):
         :return:
         """
         data = Data()
-        if g.login:
-            # 如果请求带了token，返回最新的用户数据
-            data.token = g.token
-            data.user = self.generate_user(g.user)
+        if not g.login:
+            return Response.params_error(message=g.message)
+        # 如果请求带了token，返回最新的用户数据
+        data.token = g.token
+        data.user = self.generate_user(g.user)
 
-            # 将uid与token缓存到数据库中
-            res = g.cache.set_pointed(g.token, "uid", g.user.id)
+        # 将uid与token缓存到数据库中
+        res = g.cache.set_pointed(g.token, "uid", g.user.id)
 
-            # 如果res < 0 说明缓存发生了错误
-            if res < 0:
-                return Response.server_error(message="缓存过程中发生错误")
+        # 如果res < 0 说明缓存发生了错误
+        if res < 0:
+            return Response.server_error(message="缓存过程中发生错误")
 
-            return Response.success(data=data)
-        else:
-            # 如果没有带token，返回token重定向响应
-            return Response.token_error(message=g.message)
+        return Response.success(data=data)
 
     @marshal_with(resource_fields)
     def post(self):
@@ -69,33 +69,31 @@ class LoginView(Resource):
         """
         form = LoginForm(request.form)
         data = Data()
-        if form.validate():
-            # 如果表单格式正确
-            username = form.username.data
-            password = form.password.data
-            remember = form.remember.data
-            print(remember)
+        if not form.validate():
+            return Response.params_error(message=form.get_error())
+        # 如果表单格式正确
+        username = form.username.data
+        password = form.password.data
+        remember = form.remember.data
 
-            # 从数据库中搜索这个用户名
-            user = CMSUser.query.filter_by(username=username).first()
-            if user and user.validate(raw_password=password):
-                # 如果用户存在且密码正确, 生成新的token，并将其缓存起来
-                token = generate_token(user.id, permanent=remember)
-                res = g.cache.set_pointed(token, "uid", user.id, permanent=remember)
+        # 从数据库中搜索这个用户名
+        user = CMSUser.query.filter_by(username=username).first()
+        if user and user.validate(raw_password=password):
+            # 如果用户存在且密码正确, 生成新的token，并将其缓存起来
+            token = generate_token(user.id, permanent=remember)
+            res = g.cache.set_pointed(token, "uid", user.id, permanent=remember)
 
-                # 如果缓存错误
-                if res < 0:
-                    return Response.server_error(message="数据缓存过程中发生错误")
+            # 如果缓存错误
+            if res < 0:
+                return Response.server_error(message="数据缓存过程中发生错误")
 
-                # 返回正常的数据
-                data.token = token
-                data.user = self.generate_user(user)        # data.user = user
-                return Response.success(data=data)
-            else:
-                # 没有这个用户，或者密码错误
-                return Response.source_error(message="密码错误或者用户不存在", data=data)
+            # 返回正常的数据
+            data.token = token
+            data.user = self.generate_user(user)        # data.user = user
+            return Response.success(data=data)
         else:
-            return Response.params_error(message=form.get_error(), data=data)
+            # 没有这个用户，或者密码错误
+            return Response.source_error(message="密码错误或者用户不存在", data=data)
 
     @staticmethod
     def generate_user(user):
@@ -146,34 +144,33 @@ class ProfileView(Resource):
     def post(self):
         form = ProfileForm(request.form)
         data = Data()
-        if form.validate():
+        if not form.validate():
+            return Response.params_error(message=form.get_error())
             # 表单验证通过, 获取用户信息
-            user = g.user
-            display_name = form.displayName.data
+        user = g.user
+        display_name = form.displayName.data
 
-            # 检查表单中的新姓名是否在数据库中有重复部分
-            search_user = CMSUser.query.filter_by(display_name=display_name).first()
-            if search_user:
-                # 重复了
-                return Response.deny_error(message="该昵称已存在")
-            else:
-                # 没有重复，则修改用户的姓名与描述，并且提交至数据库
-                user.display_name = display_name
-                user.desc = form.desc.data
-                db.session.commit()
-
-                # 返回一个user数据对象
-                data.user = LoginView.generate_user(user)
-                return Response.success(data=data)
+        # 检查表单中的新姓名是否在数据库中有重复部分
+        search_user = CMSUser.query.filter_by(display_name=display_name).first()
+        if search_user:
+            # 重复了
+            return Response.deny_error(message="该昵称已存在")
         else:
-            return Response.params_error(message=form.get_error(), data=data)
+            # 没有重复，则修改用户的姓名与描述，并且提交至数据库
+            user.display_name = display_name
+            user.desc = form.desc.data
+            db.session.commit()
+
+            # 返回一个user数据对象
+            data.user = LoginView.generate_user(user)
+            return Response.success(data=data)
 
 
 class BoardView(Resource):
     """
     和板块视图相关的类视图
-    get请求可处理的业务: 获取boards数据，删除指定board
-    post请求可处理的业务: 新增board, 修改已有board
+    get请求可处理的业务: 获取boards数据
+    post请求可处理的业务: 新增board, 修改已有board，删除board
     """
     resource_fields = {
         "code": fields.Integer,
@@ -184,7 +181,7 @@ class BoardView(Resource):
                 "name": fields.String,          # 板块名称
                 "desc": fields.String,          # 板块描述
                 "created": fields.Integer,      # 板块创建时间
-                "avatar_url": fields.String,    # 板块头像
+                "avatar": fields.String,    # 板块头像
                 "articles": fields.Integer      # 板块下所含文章数量
             })),
             "total": fields.Integer             # 板块总数
@@ -202,9 +199,9 @@ class BoardView(Resource):
         status: 板块状态，默认查询状态status为1的板块
         :return:
         """
-        offset = int(request.args.get("offset", 0))
-        limit = int(request.args.get("limit", 10))
-        status = int(request.args.get("status", 1))
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+        status = request.args.get("status", 1, type=int)
         data = Data()
 
         # status的值用于筛选对应status值的boards，1为可见，0为不可见
@@ -223,54 +220,42 @@ class BoardView(Resource):
     @marshal_with(resource_fields)
     def post(self):
         form = BoardForm(request.form)
-        if form.validate():
-            # 表单验证通过，先获取表单的值
-            name = form.name.data
-            desc = form.desc.data
-            avatar_url = form.avatar_url.data
-            board_id = form.board_id.data
-            status = form.status.data
-
-            if board_id:
-                # 如果表单的board_id不为0，说明这是一个编辑的请求，并获取相应的board
-                board = Board.query.filter_by(id=board_id).first()
-                if board:
-                    # 存在该板块，设为对应编辑的值
-                    board.name = name
-                    board.desc = desc
-                    board.avatar_url = avatar_url
-                    board.status = status
-
-                    # 提交至数据库，并返回编辑后的新值
-                    db.session.commit()
-                    data = Data()
-                    data.boards = [self.generate_board(board)]
-                    data.total = 1
-                    return Response.success(data=data)
-                else:
-                    # 不存在该板块，返回错误
-                    return Response.server_error(message="数据库中找不到该板块")  # source_error 404
-            else:
-                # 如果表单的board_id为0，说明这是一个新建板块请求
-                # 新建一个板块，并提交到数据库
-                board = Board(name=name, desc=desc, avatar_url=avatar_url)
-                db.session.add(board)
-                db.session.commit()
-
-                # 返回新建的板块的值
-                data = Data()
-                data.boards = [self.generate_board(board)]
-                data.total = 1
-                return Response.success(data=data)
-        else:
-            # 表单验证失败，返回参数错误
+        if not form.validate():
             return Response.params_error(message=form.get_error())
+            # 表单验证通过，先获取表单的值
+        name = form.name.data
+        desc = form.desc.data
+        avatar = form.avatar.data
+        board_id = form.board_id.data
+        status = form.status.data
 
-    def parse_args(self, arg):
-        # 将传入的参数转化为int类型，如果不能，就返回false
-        if arg and arg.isnumeric():
-            return int(arg)
-        return False
+        data = Data()
+
+        if board_id:
+            # 如果表单的board_id不为0，说明这是一个编辑的请求，并获取相应的board
+            board = Board.query.filter_by(id=board_id).first()
+            if not board:
+                return Response.source_error(message="数据库中找不到该板块")
+
+            # 存在该板块，设为对应编辑的值
+            board.name = name
+            board.desc = desc
+            board.avatar = avatar
+            board.status = status
+
+            # 提交至数据库
+            db.session.commit()
+
+        else:
+            # 如果表单的board_id为0，说明这是一个新建板块请求
+            # 新建一个板块，并提交到数据库
+            board = Board(name=name, desc=desc, avatar=avatar)
+            db.session.add(board)
+            db.session.commit()
+
+        data.boards = [self.generate_board(board)]
+        data.total = 1
+        return Response.success(data=data)
 
     @staticmethod
     def generate_board(board):
@@ -283,10 +268,31 @@ class BoardView(Resource):
         data.name = board.name
         data.board_id = board.id
         data.desc = board.desc
-        data.avatar_url = board.avatar_url
+        data.avatar = board.avatar
         data.created = board.created.timestamp()
         data.articles = len(board.articles.all())
         return data
+
+
+class ImageView(Resource):
+    resource_fields = {
+        "code": fields.Integer,
+        "message": fields.String,
+        "data": fields.Nested({
+            "uptoken": fields.String
+        })
+    }
+
+    method_decorators = [login_required(CMSPermission.VISITOR)]
+
+    @marshal_with(resource_fields)
+    def get(self):
+        if not g.login:
+            return Response.auth_error(message=g.message)
+
+        data = Data()
+        data.uptoken = generate_uptoken()
+        return Response.success(data=data)
 
 
 class TestView(Resource):
@@ -307,28 +313,30 @@ api.add_resource(LogOutView, "/logout/", endpoint="logout")
 api.add_resource(ProfileView, "/api/profile/", endpoint="set_profile")
 api.add_resource(BoardView, "/api/board/", endpoint="board")
 
+api.add_resource(ImageView, "/api/image/", endpoint="backend_image")
 api.add_resource(TestView, "/api/test/token/", endpoint="test")
 
 
 # hooks 用来在上下文中储存cms_user信息，防止重复写token认证语句
 @cms_bp.before_request
 def before_request():
-    # 从header中获取token值，并且将缓存加入上下文变量g中
-    token = request.headers.get("Z-Token")
-    g.cache = cache
-    if token:
-        # 如果有token，尝试从数据库中获取用户
-        res, user = token_validator.validate(token)
-        if res and user:
-            # 获取用户成功的话，g.login置为真，将user与token也绑定到上下文变量g
-            g.login = True
-            g.user = user
-            g.token = token
-        else:
-            # 获取失败，说明token的值有问题
-            g.login = False
-            g.message = user
-    else:
-        # 没有token，直接将g.login置为假
-        g.login = False
-        g.message = "没有token值"
+    hook_before(token_validator, cache, no_token_msg="没有token值")
+    # # 从header中获取token值，并且将缓存加入上下文变量g中
+    # token = request.headers.get("Z-Token")
+    # g.cache = cache
+    # if token:
+    #     # 如果有token，尝试从数据库中获取用户
+    #     res, user = token_validator.validate(token)
+    #     if res and user:
+    #         # 获取用户成功的话，g.login置为真，将user与token也绑定到上下文变量g
+    #         g.login = True
+    #         g.user = user
+    #         g.token = token
+    #     else:
+    #         # 获取失败，说明token的值有问题
+    #         g.login = False
+    #         g.message = user
+    # else:
+    #     # 没有token，直接将g.login置为假
+    #     g.login = False
+    #     g.message = "没有token值"
