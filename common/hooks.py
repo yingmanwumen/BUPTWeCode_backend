@@ -1,7 +1,26 @@
 from flask import request, g
+from .token import TokenValidator
+from .cache import MyRedis
+from cms.models import CMSUser
+from front.models import FrontUser
 
 
-def hook_before(token_validator, cache=None, no_user_msg="", no_token_msg=""):
+cms_token_validator = TokenValidator(CMSUser)
+cms_cache = MyRedis(db=15, default_expire=3600, long_expire=86400)
+
+front_cache = MyRedis(db=0, default_expire=3600, long_expire=86400)
+front_token_validator = TokenValidator(FrontUser)
+
+
+def hook_cms(no_user_msg="", no_token_msg=""):
+    base_hook(cms_token_validator, cms_cache, no_user_msg, no_token_msg)
+
+
+def hook_front(no_user_msg="", no_token_msg=""):
+    base_hook(front_token_validator, front_cache, no_user_msg, no_token_msg)
+
+
+def base_hook(token_validator, cache, no_user_msg="", no_token_msg=""):
     # 从header中获取token值，并且将缓存加入上下文变量g中
     token = request.headers.get("Z-Token")
     if cache:

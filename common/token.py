@@ -5,6 +5,20 @@ import common.restful as restful
 import functools
 
 
+class Permission(object):
+    VISITOR        = 0b00000001  # 访问者权限
+    COMMENTER      = 0b00000010  # 管理评论权限
+    POSTER         = 0b00000100  # 管理帖子权限
+    FRONTUSER      = 0b00001000  # 管理板块权限
+    BOADER         = 0b00010000  # 管理前台用户的角色
+    CMSUSER        = 0b00100000  # 管理后台用户的角色
+    ROOTER         = 0b01000000  # 超级管理员
+
+    OPERATOR = VISITOR | COMMENTER | POSTER | FRONTUSER                     # 运营角色
+    ADMIN = VISITOR | COMMENTER | POSTER | FRONTUSER | BOADER | CMSUSER     # 管理员角色
+    ALL_PERMISSION = 0b11111111                                             # 开发者用
+
+
 def generate_token(uid, permanent=False):
     # 第一个参数为session用的密匙，第二个参数是token的有效期，单位为秒
     expire_time = LONG_EXPIRE_TIME_FOR_TOKEN if permanent else DEFAULT_EXPIRE_TIME_FOR_TOKEN

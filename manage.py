@@ -27,7 +27,7 @@ def add_cms_user(username, password, rolename):
         if not user:
             user = cms_models.CMSUser(username=username, password=password)
             rolename = rolename or "VISITOR"
-            role = cms_models.CMSRole.query.filter_by(name=rolename).first()
+            role = cms_models.Role.query.filter_by(name=rolename).first()
             if role:
                 user.role = role
                 db.session.add(user)
@@ -72,20 +72,20 @@ def init_role():
     """
     try:
         # 1.访问者，可以修改个人信息
-        visitor = cms_models.CMSRole(name="VISITOR", display_name="访问者", desc="仅支持数据的访问。")
-        visitor.permission = cms_models.CMSPermission.VISITOR
+        visitor = cms_models.Role(name="VISITOR", display_name="访问者", desc="仅支持数据的访问。")
+        visitor.permission = cms_models.Permission.VISITOR
 
         # 2.运营角色，可以管理帖子，评论与前台用户
-        operator = cms_models.CMSRole(name="OPERATOR", display_name="运营", desc="管理帖子，评论，以及前台用户。")
-        operator.permission = cms_models.CMSPermission.OPERATOR
+        operator = cms_models.Role(name="OPERATOR", display_name="运营", desc="管理帖子，评论，以及前台用户。")
+        operator.permission = cms_models.Permission.OPERATOR
 
         # 3.管理员, 可以管理板块与运营
-        admin = cms_models.CMSRole(name="ADMIN", display_name="管理员", desc="你现在可以为所欲为了")
-        admin.permission = cms_models.CMSPermission.ADMIN
+        admin = cms_models.Role(name="ADMIN", display_name="管理员", desc="你现在可以为所欲为了")
+        admin.permission = cms_models.Permission.ADMIN
 
         # 4.开发者
-        developer = cms_models.CMSRole(name="DEVELOPER", display_name="开发者", desc="开发人员专属角色")
-        developer.permission = cms_models.CMSPermission.ALL_PERMISSION
+        developer = cms_models.Role(name="DEVELOPER", display_name="开发者", desc="开发人员专属角色")
+        developer.permission = cms_models.Permission.ALL_PERMISSION
 
         db.session.add_all([visitor, operator, admin, developer])
         db.session.commit()
@@ -104,7 +104,7 @@ def change_user_role(username, rolename):
             if rolename == user.role.name:
                 print("用户<{}>已经拥有<{}>的角色身份了..".format(username, rolename))
             else:
-                role = cms_models.CMSRole.query.filter_by(name=rolename).first()
+                role = cms_models.Role.query.filter_by(name=rolename).first()
                 if role:
                     user.role = role
                     db.session.commit()

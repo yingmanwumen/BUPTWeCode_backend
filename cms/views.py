@@ -3,19 +3,16 @@ from exts import db
 from flask_restful import Resource, Api, fields, marshal_with
 from sqlalchemy import func
 from common.restful import *
-from .models import CMSUser, CMSPermission
+from .models import CMSUser, Permission
 from .forms import LoginForm, ProfileForm, BoardForm
-from common.token import login_required, generate_token, TokenValidator
+from common.token import login_required, generate_token
 from common.cache import MyRedis
 from common.models import Board
 from common.image_uploader import generate_uptoken
-from common.hooks import hook_before
+from common.hooks import hook_cms
 
 cms_bp = Blueprint("cms", __name__, url_prefix="/cms")
 api = Api(cms_bp)
-
-token_validator = TokenValidator(CMSUser)
-cache = MyRedis(db=15, default_expire=3600, long_expire=86400)
 
 
 class LoginView(Resource):
@@ -47,7 +44,7 @@ class LoginView(Resource):
         """
         data = Data()
         if not g.login:
-            return Response.params_error(message=g.message)
+            return Response.token_error(message=g.message)
         # 如果请求带了token，返回最新的用户数据
         data.token = g.token
         data.user = self.generate_user(g.user)
@@ -109,7 +106,7 @@ class LoginView(Resource):
 
 class LogOutView(Resource):
 
-    method_decorators = [login_required(CMSPermission.VISITOR)]
+    method_decorators = [login_required(Permission.VISITOR)]
 
     # 用户注销的时候会请求这个接口，负责将其对应的token从缓存中删除
     def get(self):
@@ -138,7 +135,7 @@ class ProfileView(Resource):
         })
     }
 
-    method_decorators = [login_required(CMSPermission.VISITOR)]
+    method_decorators = [login_required(Permission.VISITOR)]
 
     @marshal_with(resource_fields)
     def post(self):
@@ -188,7 +185,7 @@ class BoardView(Resource):
         })
     }
 
-    method_decorators = [login_required(CMSPermission.BOADER)]
+    method_decorators = [login_required(Permission.BOADER)]
 
     @marshal_with(resource_fields)
     def get(self):
@@ -283,7 +280,7 @@ class ImageView(Resource):
         })
     }
 
-    method_decorators = [login_required(CMSPermission.VISITOR)]
+    method_decorators = [login_required(Permission.VISITOR)]
 
     @marshal_with(resource_fields)
     def get(self):
@@ -297,7 +294,7 @@ class ImageView(Resource):
 
 class TestView(Resource):
 
-    method_decorators = [login_required(CMSPermission.VISITOR)]
+    method_decorators = [login_required(Permission.VISITOR)]
 
     @marshal_with(LoginView.resource_fields)
     def get(self):
@@ -320,23 +317,5 @@ api.add_resource(TestView, "/api/test/token/", endpoint="test")
 # hooks 用来在上下文中储存cms_user信息，防止重复写token认证语句
 @cms_bp.before_request
 def before_request():
-    hook_before(token_validator, cache, no_token_msg="没有token值")
-    # # 从header中获取token值，并且将缓存加入上下文变量g中
-    # token = request.headers.get("Z-Token")
-    # g.cache = cache
-    # if token:
-    #     # 如果有token，尝试从数据库中获取用户
-    #     res, user = token_validator.validate(token)
-    #     if res and user:
-    #         # 获取用户成功的话，g.login置为真，将user与token也绑定到上下文变量g
-    #         g.login = True
-    #         g.user = user
-    #         g.token = token
-    #     else:
-    #         # 获取失败，说明token的值有问题
-    #         g.login = False
-    #         g.message = user
-    # else:
-    #     # 没有token，直接将g.login置为假
-    #     g.login = False
-    #     g.message = "没有token值"
+    hook_cms(no_user_msg="未登录", no_token_msg="没有token值")
+

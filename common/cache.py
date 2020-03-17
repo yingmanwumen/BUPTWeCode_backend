@@ -63,14 +63,3 @@ class MyRedis(object):
         """
         return self.redis.hdel(name, *key)
 
-
-if __name__ == '__main__':
-    r = MyRedis(0, 86400)
-    a = {"name": "menmensaa", "age": 16, "length": 18, "token": "12345667", "c": "d"}
-    print(r.set("a", a))
-    print(r.get_pointed("a", "age", "length", "aaa"))
-    print(r.set_pointed("a", "age", 100))
-    print(r.get("a"))
-    print(r.delete_pointed("a", "c", "token"))
-    print(r.delete("a"))
-

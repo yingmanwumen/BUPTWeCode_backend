@@ -25,4 +25,20 @@ def index():
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0")
+    # app.run(host="0.0.0.0")
+
+    def test():
+        with app.app_context():
+            from common.models import Article, Comment, SubComment
+            from front.models import FrontUser
+            from common.token import Permission
+
+            article_user = FrontUser.query.get("4GGG2xk5PQowVA6gXucowB")
+            user = FrontUser.query.get("VPmfQdH4otRpWe8zfCmSbk")
+            article = Article.query.get("aaa")
+            comment = Comment.query.get("tdsBnYHz7P9SpZ5Mwavc3T")
+            sub_comment_article = SubComment.query.get("kNfa9d3YxjYWDx3yz7SWqM")
+            sub_comment_user = SubComment.query.get("bbb")
+            print(user.has_permission(Permission.COMMENTER, sub_comment_article))
+
+    test()
