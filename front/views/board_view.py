@@ -23,8 +23,9 @@ class BoardView(Resource):
                 "board_id": fields.Integer,     # 板块唯一标识
                 "name": fields.String,          # 板块名称
                 "desc": fields.String,          # 板块描述
-                "avatar": fields.String,    # 板块头像
+                "avatar": fields.String,        # 板块头像
             })),
+            "total": fields.Integer             # 板块总数
         })
     }
 
@@ -33,21 +34,15 @@ class BoardView(Resource):
     @marshal_with(resource_fields)
     def get(self):
         """
-        负责返回板块的查询，接受三个参数
-        offset: 偏移，默认为0
-        limit: 数量，默认为10
-        status: 板块状态，默认查询状态status为1的板块
+        负责返回板块的查询
         :return:
         """
-        offset = request.args.get("offset", 0, type=int)
-        limit = request.args.get("limit", 10, type=int)
-        status = request.args.get("status", 1, type=int)
         data = Data()
 
         # status的值用于筛选对应status值的boards，1为可见，0为不可见
-        boards = Board.query.filter_by(status=status)
+        boards = Board.query.filter_by(status=1)
         # 用切片筛选结果
-        res = boards[offset:offset+limit]
+        res = boards.all()
 
         # 优化后的sql count函数
         total = boards.with_entities(func.count(Board.id)).scalar()

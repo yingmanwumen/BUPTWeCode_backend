@@ -1,9 +1,10 @@
 import redis
+from conf import IPHOST
 
 
 class MyRedis(object):
     def __init__(self, db, default_expire, long_expire):
-        self.redis = redis.Redis(host="47.100.26.65", port=6379, decode_responses=True, db=db)
+        self.redis = redis.Redis(host=IPHOST, port=6379, decode_responses=True, db=db)
         self.default_expire = default_expire
         self.long_expire = long_expire
 
@@ -63,3 +64,46 @@ class MyRedis(object):
         """
         return self.redis.hdel(name, *key)
 
+    def incrby(self, name, key, amount=1):
+        """
+        将键为name的散列表中映射的值增加amount
+        name：键名
+        key：映射键名
+        amount：增长量
+        """
+        return self.redis.hincrby(name, key, amount)
+
+    def exists(self, key):
+        """
+        判断某个键是否存在
+        """
+        return self.redis.exists(key)
+
+    def sorted_add(self, name, mapping):
+        """
+        在有序集合中添加数据，若已存在则更新顺序
+        name：键名
+        mapping:将value和score组装成的dict{value: score}
+        返回添加的数据的个数
+        """
+        return self.redis.zadd(name, mapping)
+
+    def sorted_del(self, key, *values):
+        """
+        删除key中的元素value
+        返回删除的元素的个数
+        """
+        return self.redis.zrem(key, *values)
+
+    def sorted_range(self, key, start, end, withscores=False):
+        """
+        返回从start到end的元素（score从大到小）
+        withscores：是否带有score
+        """
+        return self.redis.zrevrange(key, start, end, withscores)
+
+    def sorted_card(self, key):
+        """
+        返回key中的元素个数
+        """
+        return self.redis.zcard(key)
