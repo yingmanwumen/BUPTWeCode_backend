@@ -17,6 +17,7 @@ def get_user_session(code):
         resp = wx_session.get(url=wx_login_url)
         data = resp.json()
         errcode = data.get("errcode", False)
+        print(data)
         if not errcode:
             return True, data
         elif errcode == -1:
@@ -25,6 +26,8 @@ def get_user_session(code):
             raise DIYException("code为无效值")
         elif errcode == 45001:
             raise DIYException("该用户请求频率过高，请稍后尝试")
+        else:
+            raise DIYException(data["errmsg"])
     except DIYException as e:
         return False, e
     except Exception as e:
