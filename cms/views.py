@@ -36,29 +36,23 @@ class LoginView(Resource):
         })
     }
 
-    @marshal_with(resource_fields)
     def get(self):
         """
         cms前台每次初始化的时候，会用get请求来从服务器检查登陆的信息以及最新的用户数据
         :return:
         """
-        data = Data()
         if not g.login:
-            return Response.token_error(message=g.message)
-        # 如果请求带了token，返回最新的用户数据
-        data.token = g.token
-        data.user = self.generate_user(g.user)
+            return token_error(message=g.message)
 
         # 将uid与token缓存到数据库中
         res = g.cache.set_pointed(g.token, "uid", g.user.id)
 
         # 如果res < 0 说明缓存发生了错误
         if res < 0:
-            return Response.server_error(message="缓存过程中发生错误")
+            return server_error(message="缓存过程中发生错误")
 
-        return Response.success(data=data)
+        return self._generate_response(g.token, g.user)
 
-    @marshal_with(resource_fields)
     def post(self):
         """
         负责处理每次的登陆请求
@@ -67,7 +61,7 @@ class LoginView(Resource):
         form = LoginForm(request.form)
         data = Data()
         if not form.validate():
-            return Response.params_error(message=form.get_error())
+            return params_error(message=form.get_error())
         # 如果表单格式正确
         username = form.username.data
         password = form.password.data
@@ -82,26 +76,28 @@ class LoginView(Resource):
 
             # 如果缓存错误
             if res < 0:
-                return Response.server_error(message="数据缓存过程中发生错误")
+                return server_error(message="数据缓存过程中发生错误")
 
             # 返回正常的数据
-            data.token = token
-            data.user = self.generate_user(user)        # data.user = user
-            return Response.success(data=data)
+            return self._generate_response(token, user)
         else:
             # 没有这个用户，或者密码错误
-            return Response.source_error(message="密码错误或者用户不存在", data=data)
+            return source_error(message="密码错误或者用户不存在", data=data)
 
-    @staticmethod
-    def generate_user(user):
+    @marshal_with(resource_fields)
+    def _generate_response(self, token, user):
         # 用于返回一个格式化的user数据对象
-        res = Data()
-        res.role = user.role.name
-        res.created = user.created.timestamp()
-        res.display_name = user.display_name
-        res.username = user.username
-        res.desc = user.desc
-        return res
+        resp = Data()
+        resp.token = token
+        resp.user = Data()
+
+        resp.user.role = user.role.name
+        resp.user.created = user.created.timestamp()
+        resp.user.display_name = user.display_name
+        resp.user.username = user.username
+        resp.user.desc = user.desc
+
+        return Response.success(data=resp)
 
 
 class LogOutView(Resource):
@@ -137,13 +133,12 @@ class ProfileView(Resource):
 
     method_decorators = [login_required(Permission.VISITOR)]
 
-    @marshal_with(resource_fields)
     def post(self):
         form = ProfileForm(request.form)
-        data = Data()
         if not form.validate():
-            return Response.params_error(message=form.get_error())
-            # 表单验证通过, 获取用户信息
+            return params_error(message=form.get_error())
+
+        # 表单验证通过, 获取用户信息
         user = g.user
         display_name = form.displayName.data
 
@@ -151,16 +146,15 @@ class ProfileView(Resource):
         search_user = CMSUser.query.filter_by(display_name=display_name).first()
         if search_user:
             # 重复了
-            return Response.deny_error(message="该昵称已存在")
-        else:
-            # 没有重复，则修改用户的姓名与描述，并且提交至数据库
-            user.display_name = display_name
-            user.desc = form.desc.data
-            db.session.commit()
+            return deny_error(message="该昵称已存在")
 
-            # 返回一个user数据对象
-            data.user = LoginView.generate_user(user)
-            return Response.success(data=data)
+        # 没有重复，则修改用户的姓名与描述，并且提交至数据库
+        user.display_name = display_name
+        user.desc = form.desc.data
+        db.session.commit()
+
+        # 返回一个user数据对象
+        return success()
 
 
 class BoardView(Resource):
@@ -203,41 +197,34 @@ class BoardView(Resource):
 
         # status的值用于筛选对应status值的boards，1为可见，0为不可见
         boards = Board.query.filter_by(status=status)
-        # 用切片筛选结果
-        res = boards[offset:offset+limit]
-
         # 优化后的sql count函数
         total = boards.with_entities(func.count(Board.id)).scalar()
-        data.total = total
-        data.boards = []
-        for board in res:
-            data.boards.append(self.generate_board(board))
-        return Response.success(data=data)
+        # 用切片筛选结果
+        boards = boards[offset:offset+limit]
 
-    @marshal_with(resource_fields)
+        return self._generate_response(boards, total)
+
     def post(self):
         form = BoardForm(request.form)
         if not form.validate():
-            return Response.params_error(message=form.get_error())
+            return params_error(message=form.get_error())
             # 表单验证通过，先获取表单的值
         name = form.name.data
         desc = form.desc.data
-        avatar = form.avatar.data
+        avatar = form.avatar.data.split("?imageView2")[0]
         board_id = form.board_id.data
         status = form.status.data
-
-        data = Data()
 
         if board_id:
             # 如果表单的board_id不为0，说明这是一个编辑的请求，并获取相应的board
             board = Board.query.filter_by(id=board_id).first()
             if not board:
-                return Response.source_error(message="数据库中找不到该板块")
+                return source_error(message="数据库中找不到该板块")
 
             # 存在该板块，设为对应编辑的值
             board.name = name
             board.desc = desc
-            board.avatar = avatar
+            board.avatar = avatar + g.IMAGE_ICON
             board.status = status
 
             # 提交至数据库
@@ -250,25 +237,26 @@ class BoardView(Resource):
             db.session.add(board)
             db.session.commit()
 
-        data.boards = [self.generate_board(board)]
-        data.total = 1
-        return Response.success(data=data)
+        return success()
 
-    @staticmethod
-    def generate_board(board):
+    @marshal_with(resource_fields)
+    def _generate_response(self, boards, total):
         """
         返回一个格式化的board数据对象
-        :param board:
-        :return:
         """
-        data = Data()
-        data.name = board.name
-        data.board_id = board.id
-        data.desc = board.desc
-        data.avatar = board.avatar
-        data.created = board.created.timestamp()
-        data.articles = len(board.articles.all())
-        return data
+        resp = Data()
+        resp.boards = []
+        for board in boards:
+            data = Data()
+            data.name = board.name
+            data.board_id = board.id
+            data.desc = board.desc
+            data.avatar = board.avatar
+            data.created = board.created.timestamp()
+            data.articles = board.articles.count()
+            resp.boards.append(data)
+        resp.total = total
+        return Response.success(data=resp)
 
 
 class ImageView(Resource):
@@ -282,14 +270,11 @@ class ImageView(Resource):
 
     method_decorators = [login_required(Permission.VISITOR)]
 
-    @marshal_with(resource_fields)
     def get(self):
         if not g.login:
-            return Response.auth_error(message=g.message)
+            return auth_error(message=g.message)
 
-        data = Data()
-        data.uptoken = generate_uptoken()
-        return Response.success(data=data)
+        return success(data=dict(uptoken=generate_uptoken()))
 
 
 class TestView(Resource):

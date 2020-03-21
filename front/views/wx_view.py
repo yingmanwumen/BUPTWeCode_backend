@@ -1,6 +1,6 @@
 from flask import Blueprint, request, g
 from flask_restful import Resource, Api, fields, marshal_with
-from common.restful import Response, Data
+from common.restful import *
 from common.token import generate_token, login_required, Permission
 from common.hooks import hook_front
 from ..forms.wx_form import WXLoginForm, WXUserInfoForm
@@ -25,26 +25,24 @@ class WXLoginView(Resource):
         })
     }
 
-    @marshal_with(resource_fields)
     def get(self):
-        data = Data()
-
         # 如果当前登陆状态还有效，直接返回token
         if g.login:
-            data.token = request.headers.get("Z-Token")
-            return Response.success(data=data)
+            # data.token = request.headers.get("Z-Token")
+            # return Response.success(data=data)
+            return self._generate_response(token=request.headers.get("Z-Token"))
 
         # 如果参数中没有code，返回参数错误
         code = request.args.get("code")
         if not code:
-            return Response.params_error(message="code错误")
+            return params_error(message="code错误")
 
         # 通过wxapi加code获取用户的open_id与session_key
         flag, resp = wxapi.get_user_session(code)
 
         # 如果wxapi请求失败，返回微信服务器错误, 否则拿到open_id和session_key
         if not flag:
-            return Response.server_error(message=resp.message)
+            return server_error(message=resp.message)
         open_id, session_key = resp["openid"], resp["session_key"]
 
         # 通过open_id获取用户, 如果用户表中没有说明是新用户, 并且添加这个新用户
@@ -67,11 +65,16 @@ class WXLoginView(Resource):
 
         # 如果缓存失败，返回缓存错误
         if not res:
-            return Response.server_error(message="缓存过程中发生错误")
+            return server_error(message="缓存过程中发生错误")
 
         # 返回token值
-        data.token = token
-        return Response.success(data)
+        return self._generate_response(token)
+
+    @marshal_with(resource_fields)
+    def _generate_response(self, token):
+        resp = Data()
+        resp.token = token
+        return Response.success(data=resp)
 
 
 class WXUserInfoView(Resource):
@@ -79,7 +82,7 @@ class WXUserInfoView(Resource):
         "code": fields.Integer,
         "message": fields.String,
         "data": fields.Nested({
-            "avatarUrl": fields.String,
+            "avatar": fields.String,
             "username": fields.String,
             "signature": fields.String,
             "gender": fields.Integer
@@ -95,24 +98,23 @@ class WXUserInfoView(Resource):
             return Response.auth_error(message="没有登陆或者登陆信息已经失效")
 
         data = Data()
-        data.avatarUrl = g.user.avatar_url
+        data.avatar = g.user.avatar
         data.username = g.user.username
         data.signature = g.user.signature
         data.gender = g.user.gender
         return Response.success(data=data)
 
-    @marshal_with(resource_fields)
     def post(self):
         # 如果没有登陆信息，返回登陆错误
         if not g.login:
-            return Response.auth_error(message="没有登陆或者登陆信息已经失效")
+            return auth_error(message="没有登陆或者登陆信息已经失效")
 
         form = WXUserInfoForm(request.form)
         data = Data()
 
         # 如果表单验证失败，返回表单验证失败错误
         if not form.validate():
-            return Response.params_error(message=form.get_error())
+            return params_error(message=form.get_error())
 
         # # 获取表单的加密数据, 并且通过wxapi获得解密数据
         # encrypted_data = form.encryptedData.data
@@ -124,22 +126,26 @@ class WXUserInfoView(Resource):
         # 由于出错，暂时不用解密验证数据
 
         username = form.nickName.data
-        avatar_url = form.avatarUrl.data
+        avatar = form.avatarUrl.data
         gender = form.gender.data
 
         # 通过新的解密数据, 更新用户信息
         user = g.user
         user.username = username
-        user.avatar_url = avatar_url
+        user.avatar = avatar
         user.gender = gender
         db.session.commit()
 
-        # 返回更新后的用户信息
-        data.username = username
-        data.avatarUrl = avatar_url
-        data.gender = gender
-        data.signature = user.signature or ""
-        return Response.success(data=data)
+        return self._generate_response(user)
+
+    @marshal_with(resource_fields)
+    def _generate_response(self, user):
+        resp = Data()
+        resp.avatar = user.avatar
+        resp.username = user.username
+        resp.signature = user.signature
+        resp.gender = user.gender
+        return Response.success(data=resp)
 
 
 api.add_resource(WXLoginView, "/login/", endpoint="wx_login")

@@ -3,6 +3,8 @@ from conf import APP_ID, APP_SECRET_KEY, code2Session_URL
 from common.exceptions import DIYException
 import requests
 
+wx_session = requests.session()
+
 
 def get_user_info(session_key, encrypted_data, iv):
     print(session_key, encrypted_data, iv)
@@ -12,7 +14,7 @@ def get_user_info(session_key, encrypted_data, iv):
 def get_user_session(code):
     try:
         wx_login_url = code2Session_URL.format(APP_ID, APP_SECRET_KEY, code)
-        resp = requests.get(url=wx_login_url)
+        resp = wx_session.get(url=wx_login_url)
         data = resp.json()
         errcode = data.get("errcode", False)
         if not errcode:

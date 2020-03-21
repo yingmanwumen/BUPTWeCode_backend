@@ -3,6 +3,7 @@ from .token import TokenValidator
 from .cache import MyRedis
 from cms.models import CMSUser
 from front.models import FrontUser
+from config import IMAGE_ICON, IMAGE_PIC
 
 
 cms_token_validator = TokenValidator(CMSUser)
@@ -23,6 +24,8 @@ def hook_front(no_user_msg="", no_token_msg=""):
 def base_hook(token_validator, cache, no_user_msg="", no_token_msg=""):
     # 从header中获取token值，并且将缓存加入上下文变量g中
     token = request.headers.get("Z-Token")
+    g.IMAGE_ICON = IMAGE_ICON
+    g.IMAGE_PIC = IMAGE_PIC
     if cache:
         g.cache = cache
     if token:

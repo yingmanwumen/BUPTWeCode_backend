@@ -14,7 +14,7 @@ class FrontUser(db.Model):
     username = db.Column(db.String(20), default="未命名", nullable=False)
     signature = db.Column(db.String(100), default="你只需默认就好，无需多言我的好", nullable=False)
     gender = db.Column(db.Integer, default=0, nullable=False)
-    avatar_url = db.Column(db.String(500))
+    avatar = db.Column(db.String(500))
     permission = db.Column(db.Integer, default=1)
 
     created = db.Column(db.DateTime, default=datetime.now)

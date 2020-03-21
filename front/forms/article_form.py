@@ -7,12 +7,12 @@ class ArticleForm(BaseForm):
     board_id = IntegerField(validators=[InputRequired(message="缺失文章所属板块")])
     title = StringField(validators=[InputRequired(message="缺失文章标题"), Length(min=1, max=20, message="标题长度错误")])
     content = StringField(validators=[InputRequired(message="缺失文章内容")])
-    imageList = StringField()
+    images = StringField()
 
     def validate(self):
         if not super().validate():
             return False
-        res = self.imageList.data.split(",")
+        res = self.images.data.split(",")
         if len(res) > 4:
             return False
         return True
