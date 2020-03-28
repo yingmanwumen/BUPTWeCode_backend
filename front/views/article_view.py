@@ -1,7 +1,6 @@
 from flask import Blueprint, request, g
 from sqlalchemy import func
 from flask_restful import Resource, Api, fields, marshal_with
-from front.forms.article_form import ArticleForm
 from common.token import login_required, Permission
 from common.models import Board, Article
 from common.cache import MyRedis
@@ -9,6 +8,7 @@ from common.hooks import hook_front
 from exts import db
 from common.restful import *
 from ..models import FrontUser
+from ..forms import ArticleForm
 
 article_bp = Blueprint("article", __name__, url_prefix="/api/article")
 # 长过期时间改为一个月
@@ -112,9 +112,9 @@ class PutView(Resource):
         :board_id   所属板块
         :title      文章标题
         :content    正文
-        :imageList  图片
+        :images  图片
         """
-        form = ArticleForm(request.form)
+        form = ArticleForm.from_json(request.json)
         if not form.validate():
             return params_error(message=form.get_error())
 
@@ -127,7 +127,7 @@ class PutView(Resource):
         # 首先，往数据库中存储文章
         title = form.title.data
         content = form.content.data
-        images = ",".join([image + g.IMAGE_PIC for image in form.images.data.split(",")])
+        images = ",".join([image + g.IMAGE_PIC for image in form.images.data])
         article = Article(title=title, content=content,
                           images=images, board_id=board_id,
                           author_id=g.user.id)
@@ -177,7 +177,8 @@ class QueryView(Resource):
                 "author": fields.Nested({
                     "author_id": fields.String,
                     "username": fields.String,
-                    "avatar": fields.String
+                    "avatar": fields.String,
+                    "gender": fields.Integer
                 })
             })),
             "total": fields.Integer,
@@ -227,7 +228,7 @@ class QueryView(Resource):
                 articles = articles.filter_by(author_id=author_id)
 
             total = articles.with_entities(func.count(Article.id)).scalar()
-            articles = articles.order_by("-created")[offset: offset+limit]
+            articles = articles.order_by(Article.created.desc())[offset: offset+limit]
             return self._generate_response(articles, total)
 
         # 按照热度进行排序
@@ -263,10 +264,13 @@ class QueryView(Resource):
             data.author.author_id = article.author_id
             data.author.username = article.author.username
             data.author.avatar = article.author.avatar
+            data.author.gender = article.author.gender
 
             data.content = article.content
-            data.images = article.images.split(",")
-
+            if article.images:
+                data.images = article.images.split(",")
+            else:
+                data.images = []
             resp.articles.append(data)
 
         resp.total = total
@@ -306,9 +310,9 @@ class DeleteView(Resource):
         return success()
 
 
-api.add_resource(PutView, "/put/", endpoint="put")
-api.add_resource(QueryView, "/query/", endpoint="query")
-api.add_resource(DeleteView, "/delete/", endpoint="delete")
+api.add_resource(PutView, "/put/", endpoint="front_article_put")
+api.add_resource(QueryView, "/query/", endpoint="front_article_query")
+api.add_resource(DeleteView, "/delete/", endpoint="front_article_delete")
 
 
 @article_bp.before_request

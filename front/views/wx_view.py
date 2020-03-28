@@ -3,7 +3,7 @@ from flask_restful import Resource, Api, fields, marshal_with
 from common.restful import *
 from common.token import generate_token, login_required, Permission
 from common.hooks import hook_front
-from ..forms.wx_form import WXLoginForm, WXUserInfoForm
+from ..forms import WXUserInfoForm, WXLoginForm
 from ..models import FrontUser
 from exts import db
 

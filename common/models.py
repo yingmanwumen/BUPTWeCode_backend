@@ -20,7 +20,7 @@ class Article(db.Model):
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
     title = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    images = db.Column(db.Text)
+    images = db.Column(db.Text, default="")
     created = db.Column(db.DateTime, default=datetime.now)
     status = db.Column(db.Integer, default=1)
 
@@ -57,3 +57,12 @@ class SubComment(db.Model):
 
     author = db.relationship("FrontUser", backref="sub_comments", foreign_keys=[author_id])
     acceptor = db.relationship("FrontUser", backref="sub_comments_accepted", foreign_keys=[acceptor_id])
+
+
+class FeedBack(db.Model):
+    __tablename__ = "feedbacks"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    category = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(50), nullable=True)
+    content = db.Column(db.Text, nullable=False)
+    images = db.Column(db.Text)

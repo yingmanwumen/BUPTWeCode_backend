@@ -67,7 +67,7 @@ class BoardView(Resource):
         return data
 
 
-api.add_resource(BoardView, '/', endpoint="front_board")
+api.add_resource(BoardView, '/', endpoint="front_board_query")
 
 
 @board_bp.before_request
