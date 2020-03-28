@@ -28,5 +28,5 @@ def index():
 
 
 if __name__ == '__main__':
-    print("测试分支，不稳定，有bug请随时联系我")
-    app.run(host="0.0.0.0", port=5001)
+    # 测试分支，不稳定，有bug请联系我
+    app.run(host="0.0.0.0")
