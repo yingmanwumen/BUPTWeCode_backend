@@ -28,6 +28,7 @@ def index():
 
 
 if __name__ == '__main__':
+    print("This is dev app")
     app.run(host="0.0.0.0")
     # from common.models import Article, Board
     # from front.models import FrontUser
