@@ -28,16 +28,5 @@ def index():
 
 
 if __name__ == '__main__':
-    print("This is dev app")
+    print("测试分支，不稳定，有bug请随时联系我")
     app.run(host="0.0.0.0")
-    # from common.models import Article, Board
-    # from front.models import FrontUser
-    # with app.app_context():
-    #     user = FrontUser.query.first()
-    #     for board in Board.query.all():
-    #         for i in range(50):
-    #             article = Article(title=board.name, content="测试第{}篇帖子".format(i))
-    #             article.board = board
-    #             article.author = user
-    #             db.session.add(article)
-    #     db.session.commit()
