@@ -7,6 +7,7 @@ from common.token import login_required, Permission
 from common.models import Article, Comment
 from ..forms import CommentForm
 from exts import db
+# from sqlalchemy.orm.dynamic import AppenderQuery
 
 comment_bp = Blueprint("comment", __name__, url_prefix="/api/comment")
 api = Api(comment_bp)
@@ -106,9 +107,9 @@ class CommentQueryView(Resource):
         if not article:
             return source_error(message="文章不存在")
 
-        comments = article.comments.query.filter_by(status=1)
+        comments = article.comments.filter_by(status=1)
         total = comments.with_entities(func.count(Comment.id)).scalar()
-        comments = comments.order_by(Comment.created.desc())[offset:offset+limit]
+        comments = comments.order_by(Comment.created.asc())[offset:offset+limit]
         return self._generate_response(comments, total)
 
     @marshal_with(resource_fields)
