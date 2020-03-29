@@ -39,6 +39,7 @@ class CommentPutView(Resource):
         comment.article = article
         db.session.add(comment)
         db.session.commit()
+        return success()
 
 
 class CommentDeleteView(Resource):
