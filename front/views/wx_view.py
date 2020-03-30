@@ -85,7 +85,8 @@ class WXUserInfoView(Resource):
             "avatar": fields.String,
             "username": fields.String,
             "signature": fields.String,
-            "gender": fields.Integer
+            "gender": fields.Integer,
+            "uid": fields.String
         })
     }
 
@@ -102,6 +103,7 @@ class WXUserInfoView(Resource):
         data.username = g.user.username
         data.signature = g.user.signature
         data.gender = g.user.gender
+        data.uid = g.user.id
         return Response.success(data=data)
 
     def post(self):
@@ -145,6 +147,7 @@ class WXUserInfoView(Resource):
         resp.username = user.username
         resp.signature = user.signature
         resp.gender = user.gender
+        resp.uid = user.id
         return Response.success(data=resp)
 
 
