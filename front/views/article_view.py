@@ -159,7 +159,7 @@ class QueryView(Resource):
         "message": fields.String,
         "data": fields.Nested({
             "articles": fields.List(fields.Nested({
-                "id": fields.String,                    # 文章id
+                "article_id": fields.String,                    # 文章id
                 "title": fields.String,                 # 标题
                 "content": fields.String,               # 正文
                 "images": fields.List(fields.String),   # 文章图片
@@ -246,7 +246,7 @@ class QueryView(Resource):
         resp.articles = []
         for article in articles:
             data = Data()
-            data.id = article.id
+            data.article_id = article.id
             data.title = article.title
             # data.like = CacheArticle.get_val(article, "like")
             # data.view = CacheArticle.get_val(article, "view")

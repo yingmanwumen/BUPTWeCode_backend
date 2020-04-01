@@ -88,7 +88,8 @@ class CommentQueryView(Resource):
                 }),
                 "content": fields.String,
                 "images": fields.List(fields.String),
-                "created": fields.Integer
+                "created": fields.Integer,
+                "comment_id": fields.String
             })),
             "total": fields.Integer
         })
@@ -128,6 +129,7 @@ class CommentQueryView(Resource):
             data = Data()
             data.content = comment.content
             data.created = comment.created.timestamp()
+            data.comment_id = comment.id
 
             data.author = Data()
             data.author.author_id = comment.author_id
@@ -228,7 +230,8 @@ class SubCommentQueryView(Resource):
                     "gender": fields.Integer,
                 }),
                 "content": fields.String,
-                "created": fields.Integer
+                "created": fields.Integer,
+                "sub_comment_id": fields.String
             })),
             "total": fields.Integer
         })
@@ -257,11 +260,12 @@ class SubCommentQueryView(Resource):
     def _generate_response(self, sub_comments, total):
         resp = Data()
         resp.total = total
-        resp.comments = []
+        resp.sub_comments = []
         for sub_comment in sub_comments:
             data = Data()
             data.content = sub_comment.content
             data.created = sub_comment.created.timestamp()
+            data.sub_comment_id = sub_comment.id
 
             data.author = Data()
             data.author.author_id = sub_comment.author_id
@@ -275,7 +279,7 @@ class SubCommentQueryView(Resource):
             data.acceptor.avatar = sub_comment.acceptor.avatar
             data.acceptor.gender = sub_comment.acceptor.gender
 
-            resp.comments.append(data)
+            resp.sub_comments.append(data)
         return Response.success(data=resp)
 
 
