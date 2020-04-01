@@ -89,7 +89,8 @@ class CommentQueryView(Resource):
                 "content": fields.String,
                 "images": fields.List(fields.String),
                 "created": fields.Integer,
-                "comment_id": fields.String
+                "comment_id": fields.String,
+                "total": fields.Integer
             })),
             "total": fields.Integer
         })
@@ -141,6 +142,8 @@ class CommentQueryView(Resource):
                 data.images = comment.images.split(",")
             else:
                 data.images = []
+
+            data.total = comment.sub_comments.with_entities(func.count(SubComment.id)).scalar()
             resp.comments.append(data)
         return Response.success(data=resp)
 
