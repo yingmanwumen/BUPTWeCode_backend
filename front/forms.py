@@ -23,6 +23,12 @@ class CommentForm(BaseForm):
     images = FieldList(StringField(validators=[URL(message="图片格式不正确")]), max_entries=4)
 
 
+class SubCommentForm(BaseForm):
+    comment_id = StringField(validators=[InputRequired(message="缺失评论id")])
+    acceptor_id = StringField(validators=[InputRequired(message="缺失要回复的人")])
+    content = StringField(validators=[InputRequired(message="缺失回复内容")])
+
+
 class WXLoginForm(BaseForm):
     code = StringField(validators=[InputRequired(message="请输入微信申请到的code值")])
 
