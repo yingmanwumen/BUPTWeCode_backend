@@ -4,6 +4,36 @@ from datetime import datetime
 import shortuuid
 
 
+class Favorite(db.Model):
+    __tablename__ = "favorites"
+    id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
+    status = db.Column(db.Integer, default=1)
+    created = db.Column(db.DateTime, default=datetime.now)
+
+    article_id = db.Column(db.String(50), db.ForeignKey("articles.id"))
+    user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+
+
+class Like(db.Model):
+    __tablename__ = "likes"
+    id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
+    status = db.Column(db.Integer, default=1)
+    created = db.Column(db.DateTime, default=datetime.now)
+
+    article_id = db.Column(db.String(50), db.ForeignKey("articles.id"))
+    user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+
+
+class Rate(db.Model):
+    __tablename__ = "rates"
+    id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
+    status = db.Column(db.Integer, default=1)
+    created = db.Column(db.DateTime, default=datetime.now)
+
+    commend_id = db.Column(db.String(50), db.ForeignKey("comments.id"))
+    user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+
+
 class FrontUser(db.Model):
     __tablename__ = "front_user"
     # __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}
@@ -22,6 +52,9 @@ class FrontUser(db.Model):
 
     articles = db.relationship("Article", backref="author", lazy="dynamic")
     comments = db.relationship("Comment", backref="author", lazy="dynamic")
+    favorites = db.relationship("Favorite", backref="user", lazy="dynamic")
+    likes = db.relationship("Like", backref="user", lazy="dynamic")
+    rates = db.relationship("Rate", backref="user", lazy="dynamic")
 
     def has_permission(self, permission, model=None):
         # 通常来说，前端用户仅需要判断是否拥有三个权限，VISITOR,COMMENTER,POSTER

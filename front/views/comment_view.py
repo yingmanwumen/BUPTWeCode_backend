@@ -6,7 +6,7 @@ from common.hooks import hook_front
 from common.token import login_required, Permission
 from common.models import Article, Comment, SubComment
 from ..forms import CommentForm, SubCommentForm
-from ..models import FrontUser
+from ..models import FrontUser, Rate
 from exts import db
 
 
@@ -286,9 +286,39 @@ class SubCommentQueryView(Resource):
         return Response.success(data=resp)
 
 
+class RateCommentView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        rate_id = request.args.get("rate_id")
+        if rate_id:
+            rate = Rate.query.get(rate_id)
+            if not rate:
+                return source_error(message="不存在该点赞")
+            if rate.user_id != g.user.id:
+                return auth_error(message="您无权操作")
+            rate.status = 1 - rate.status
+            db.session.commit()
+        else:
+            comment_id = request.args.get("comment_id")
+            if not comment_id:
+                return params_error(message="缺失评论id")
+            comment = Comment.query.get(comment_id)
+            if not comment:
+                return source_error(message="不存在该点赞")
+            rate = Rate()
+            rate.user = g.user
+            rate.comment = comment
+            db.session.add(rate)
+            db.session.commit()
+        return success()
+
+
 api.add_resource(CommentPutView, "/add/", endpoint="front_comment_add")
 api.add_resource(CommentQueryView, "/query/", endpoint="front_comment_query")
 api.add_resource(CommentDeleteView, "/delete/", endpoint="front_comment_delete")
+api.add_resource(RateCommentView, "/rate/", endpoint="front_comment_rate")
 
 api.add_resource(SubCommentPutView, "/sub/add/", endpoint="front_sub_comment_add")
 api.add_resource(SubCommentQueryView, "/sub/query/", endpoint="front_sub_comment_query")

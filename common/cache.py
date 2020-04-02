@@ -64,6 +64,32 @@ class MyRedis(object):
         """
         return self.redis.hdel(name, *key)
 
+    def list_push(self, name, *value):
+        """
+        往list中添加value
+        :param name:
+        :param value:
+        :return:
+        """
+        return self.redis.rpush(name, *value)
+
+    def list_delete(self, name, end):
+        """
+        从下标为0开始删除一个列表,删到end之前的元素
+        :param name:
+        :param start:
+        :return:
+        """
+        return self.redis.ltrim(name, start=end, end=-1)
+
+    def list_get(self, name):
+        """
+        获取一个list
+        :param name:
+        :return:
+        """
+        return self.redis.lrange(name, start=0, end=-1)
+
     def incrby(self, name, key, amount=1):
         """
         将键为name的散列表中映射的值增加amount

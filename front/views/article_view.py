@@ -2,17 +2,18 @@ from flask import Blueprint, request, g
 from sqlalchemy import func
 from flask_restful import Resource, Api, fields, marshal_with
 from common.token import login_required, Permission
-from common.models import Board, Article
+from common.models import Board, Article, Comment
 from common.cache import MyRedis
 from common.hooks import hook_front
 from exts import db
 from common.restful import *
-from ..models import FrontUser
+from ..models import FrontUser, Like, Favorite
 from ..forms import ArticleForm
 
 article_bp = Blueprint("article", __name__, url_prefix="/api/article")
 # 长过期时间改为一个月
 article_cache = MyRedis(db=1, default_expire=3600, long_expire=86400 * 30)
+property_cache = MyRedis(db=2, default_expire=3600, long_expire=86400 * 30)
 api = Api(article_bp)
 
 
@@ -163,10 +164,10 @@ class QueryView(Resource):
                 "title": fields.String,                 # 标题
                 "content": fields.String,               # 正文
                 "images": fields.List(fields.String),   # 文章图片
-                # "like": fields.Integer,               # 点赞数
-                # "view": fields.Integer,               # 浏览数
-                # "comment": fields.Integer,            # 评论数
-                # "collected": fields.Integer,          # 收藏数
+                "likes": fields.Integer,               # 点赞数
+                "views": fields.Integer,               # 浏览数
+                "comments": fields.Integer,            # 评论数
+                "favorites": fields.Integer,          # 收藏数
                 # "tag": fields.String,                 # 标签
                 "created": fields.Integer,              # 发表时间
                 "board": fields.Nested({
@@ -197,14 +198,14 @@ class QueryView(Resource):
         :author_id  作者id，可不传输，有值时按该值进行查询，无值时忽略该条件
         :offset     偏移量
         :limit      查询数量
-        :status     文章状态。默认为1
+        # :status     文章状态。默认为1
         """
         mode = request.args.get("mode")
         board_id = request.args.get("board_id", 0, type=int)
         author_id = request.args.get("author_id", None)
         offset = request.args.get("offset", 0, type=int)
         limit = request.args.get("limit", 20, type=int)
-        status = request.args.get("status", 1, type=int)
+        # status = request.args.get("status", 1, type=int)
 
         if mode not in ("hot", "new"):
             return params_error(message="不存在的排序方式")
@@ -215,10 +216,12 @@ class QueryView(Resource):
                 board = Board.query.get(board_id)
                 if not board:
                     return source_error(message="板块不存在")
-                articles = Article.query.filter_by(board_id=board_id, status=status)
+                # articles = Article.query.filter_by(board_id=board_id, status=status)
+                articles = Article.query.filter_by(board_id=board_id, status=1)
             # 板块id等于0->查询所有的帖子
             else:
-                articles = Article.query.filter_by(status=status)
+                # articles = Article.query.filter_by(status=status)
+                articles = Article.query.filter_by(status=1)
 
             # 作者id存在->按作者id查询
             if author_id:
@@ -248,12 +251,13 @@ class QueryView(Resource):
             data = Data()
             data.article_id = article.id
             data.title = article.title
-            # data.like = CacheArticle.get_val(article, "like")
-            # data.view = CacheArticle.get_val(article, "view")
-            # data.comment = CacheArticle.get_val(article, "comment")
-            # data.collected = CacheArticle.get_val(article, "collected")
+            data.likes = article.likes.with_entities(func.count(Like.id)).scalar()
+            data.views = article.views
+            data.comments = article.comments.with_entities(func.count(Comment.id)).scalar()
+            data.favorites = article.favorites.with_entities(func.count(Favorite.id)).scalar()
             # data.tag = CacheArticle.get_val(article, "tag") or ""
             data.created = article.created.timestamp()
+            data.content = article.content
 
             data.board = Data()
             data.board.board_id = article.board.id
@@ -266,7 +270,6 @@ class QueryView(Resource):
             data.author.avatar = article.author.avatar
             data.author.gender = article.author.gender
 
-            data.content = article.content
             if article.images:
                 data.images = article.images.split(",")
             else:
@@ -310,9 +313,88 @@ class DeleteView(Resource):
         return success()
 
 
+class ViewArticleView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        article_id = request.args.get("article_id")
+        property_cache.list_push("views", article_id)
+        return success()
+
+
+class LikeArticleView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        like_id = request.args.get("like_id")
+        if like_id:
+            like = Like.query.get(like_id)
+            if not like:
+                return params_error(message="不存在该赞")
+
+            if like.user_id != g.user.id:
+                return auth_error(message="您无这个权限")
+
+            like.status = 1 - like.status
+            db.session.commit()
+        else:
+            article_id = request.args.get("article_id")
+            if not article_id:
+                return params_error(message="缺失文章id")
+
+            article = Article.query.get(article_id)
+            if not article or not article.status:
+                return source_error(message="文章不存在")
+
+            like = Like()
+            like.user = g.user
+            like.article = article
+            db.session.add(like)
+            db.session.commit()
+        return success()
+
+
+class FavoriteArticleView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        favorite_id = request.args.get("like_id")
+        if favorite_id:
+            favorite = Favorite.query.get(favorite_id)
+            if not favorite:
+                return params_error(message="不存在该赞")
+
+            if favorite.user_id != g.user.id:
+                return auth_error(message="您无这个权限")
+
+            favorite.status = 1 - favorite.status
+            db.session.commit()
+        else:
+            article_id = request.args.get("article_id")
+            if not article_id:
+                return params_error(message="缺失文章id")
+
+            article = Article.query.get(article_id)
+            if not article or not article.status:
+                return source_error(message="文章不存在")
+
+            favorite = Favorite()
+            favorite.user = g.user
+            favorite.article = article
+            db.session.add(favorite)
+            db.session.commit()
+        return success()
+
+
 api.add_resource(PutView, "/put/", endpoint="front_article_put")
 api.add_resource(QueryView, "/query/", endpoint="front_article_query")
 api.add_resource(DeleteView, "/delete/", endpoint="front_article_delete")
+api.add_resource(ViewArticleView, "/view/", endpoint="front_article_view")
+api.add_resource(LikeArticleView, "/like/", endpoint="front_article_like")
+api.add_resource(FavoriteArticleView, "/favorite/", endpoint="front_article_favorite")
 
 
 @article_bp.before_request
