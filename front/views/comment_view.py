@@ -143,7 +143,7 @@ class CommentQueryView(Resource):
             else:
                 data.images = []
 
-            data.total = comment.sub_comments.with_entities(func.count(SubComment.id)).scalar()
+            data.total = comment.sub_comments.filter_by(status=1).with_entities(func.count(SubComment.id)).scalar()
             resp.comments.append(data)
         return Response.success(data=resp)
 
@@ -192,7 +192,7 @@ class SubCommentDeleteView(Resource):
     method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
-        sub_comment_id = request.args.get("subcomment_id")
+        sub_comment_id = request.args.get("sub_comment_id")
         if not sub_comment_id:
             return params_error(message="缺失楼中楼id")
 

@@ -1,4 +1,4 @@
-from wtforms import StringField, IntegerField, FieldList
+from wtforms import StringField, IntegerField, FieldList, FormField
 from wtforms.validators import InputRequired, Length, URL, Email, NumberRange
 from common.baseform import BaseForm
 
@@ -10,11 +10,17 @@ class FeedBackForm(BaseForm):
     images = FieldList(StringField(validators=[URL(message="图片地址格式不正确")]), max_entries=4)
 
 
+class TagForm(BaseForm):
+    tag_id = StringField()
+    content = StringField(validators=[InputRequired(message="缺失tag标题"), Length(min=1, max=10, message="超出tag长度限制")])
+
+
 class ArticleForm(BaseForm):
     board_id = IntegerField(validators=[InputRequired(message="缺失文章所属板块")])
     title = StringField(validators=[InputRequired(message="缺失文章标题"), Length(min=1, max=20, message="标题长度错误")])
     content = StringField(validators=[InputRequired(message="缺失文章内容"), Length(max=500, message="正文长度最多为1000")])
     images = FieldList(StringField(validators=[URL(message="图片格式不正确")]), max_entries=4)
+    tags = FieldList(FormField(TagForm), max_entries=4)
 
 
 class CommentForm(BaseForm):

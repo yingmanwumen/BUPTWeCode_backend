@@ -38,6 +38,10 @@ class Article(db.Model):
     likes = db.relationship("Like", backref="article", lazy="dynamic")
     tags = db.relationship("Tag", secondary=article_tag_table, backref=db.backref("articles"))
 
+    def add_tags(self, *tags):
+        for tag in tags:
+            self.tags.append(tag)
+
 
 class Comment(db.Model):
     __tablename__ = "comments"
@@ -81,5 +85,28 @@ class FeedBack(db.Model):
 class Tag(db.Model):
     __tablename__ = "tags"
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
-    content = db.Column(db.String(20), nullable=False)
+    content = db.Column(db.String(20), nullable=False, index=True)
     created = db.Column(db.DateTime, default=datetime.now)
+
+    def marshal(self, data_class):
+        data = data_class()
+        data.tag_id = self.id
+        data.content = self.content
+        return data
+
+    @staticmethod
+    def add_article(article, *tags):
+        for tag in tags:
+            article.tags.append(tag)
+
+    @staticmethod
+    def query_tags(*raw_tags):
+        res = []
+        for raw_tag in raw_tags:
+            tag_content = raw_tag.get("content")
+            tag = Tag.query.filter_by(content=tag_content).first()
+            if not tag:
+                tag = Tag(content=tag_content)
+                db.session.add(tag)
+            res.append(tag)
+        return res

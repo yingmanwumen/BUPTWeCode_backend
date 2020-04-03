@@ -2,7 +2,7 @@ from flask import Blueprint, request, g
 from sqlalchemy import func
 from flask_restful import Resource, Api, fields, marshal_with
 from common.token import login_required, Permission
-from common.models import Board, Article, Comment
+from common.models import Board, Article, Comment, Tag
 from common.cache import MyRedis
 from common.hooks import hook_front
 from exts import db
@@ -104,7 +104,7 @@ class PutView(Resource):
     不知道需不需要做改的功能
     """
 
-    method_decorators = [login_required(Permission.VISITOR)]
+    # method_decorators = [login_required(Permission.VISITOR)]
 
     def post(self):
         """
@@ -113,7 +113,8 @@ class PutView(Resource):
         :board_id   所属板块
         :title      文章标题
         :content    正文
-        :images  图片
+        :images     图片
+        :tags       标签
         """
         form = ArticleForm.from_json(request.json)
         if not form.validate():
@@ -128,12 +129,16 @@ class PutView(Resource):
         # 首先，往数据库中存储文章
         title = form.title.data
         content = form.content.data
+        tags = Tag.query_tags(*form.tags.data)
+        # print(form.tags.data)
+        # return success()
         images = ",".join([image + g.IMAGE_PIC for image in form.images.data])
         article = Article(title=title, content=content,
                           images=images, board_id=board_id,
                           author_id=g.user.id)
         article.board = board
         article.author = g.user
+        article.add_tags(*tags)
 
         db.session.add(article)
         db.session.commit()
@@ -160,15 +165,21 @@ class QueryView(Resource):
         "message": fields.String,
         "data": fields.Nested({
             "articles": fields.List(fields.Nested({
-                "article_id": fields.String,                    # 文章id
+                "article_id": fields.String,            # 文章id
                 "title": fields.String,                 # 标题
                 "content": fields.String,               # 正文
                 "images": fields.List(fields.String),   # 文章图片
-                "likes": fields.Integer,               # 点赞数
-                "views": fields.Integer,               # 浏览数
-                "comments": fields.Integer,            # 评论数
-                "favorites": fields.Integer,          # 收藏数
-                # "tag": fields.String,                 # 标签
+                "likes": fields.Integer,                # 点赞数
+                "views": fields.Integer,                # 浏览数
+                "comments": fields.Integer,             # 评论数
+                # "favored": fields.Boolean,              # 是否收藏文章
+                # "favorite_id": fields.String,           # 收藏id
+                "liked": fields.Boolean,                # 是否喜欢文章
+                "like_id": fields.String,               # 喜欢id
+                "tags": fields.List(fields.Nested({
+                    "tag_id": fields.String,
+                    "content": fields.String
+                })),                                    # 标签
                 "created": fields.Integer,              # 发表时间
                 "board": fields.Nested({
                     "board_id": fields.String,
@@ -186,7 +197,7 @@ class QueryView(Resource):
         })
     }
 
-    method_decorators = [login_required(Permission.VISITOR)]
+    # method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
         """
@@ -253,11 +264,23 @@ class QueryView(Resource):
             data.title = article.title
             data.likes = article.likes.with_entities(func.count(Like.id)).scalar()
             data.views = article.views
-            data.comments = article.comments.with_entities(func.count(Comment.id)).scalar()
-            data.favorites = article.favorites.with_entities(func.count(Favorite.id)).scalar()
-            # data.tag = CacheArticle.get_val(article, "tag") or ""
+            data.comments = article.comments.filter_by(status=1).with_entities(func.count(Comment.id)).scalar()
             data.created = article.created.timestamp()
             data.content = article.content
+
+            # favorite = article.favorites.filter_by(user_id=g.user.id).first()
+            # if favorite:
+            #     data.favored = True
+            #     data.favorite_id = favorite.id
+            # else:
+            #     data.favored = False
+
+            like = article.likes.filter_by(user_id=g.user.id).first()
+            if like:
+                data.liked = True
+                data.like_id = like.id
+            else:
+                data.liked = False
 
             data.board = Data()
             data.board.board_id = article.board.id
@@ -274,6 +297,9 @@ class QueryView(Resource):
                 data.images = article.images.split(",")
             else:
                 data.images = []
+
+            data.tags = [tag.marshal(Data) for tag in article.tags]
+
             resp.articles.append(data)
 
         resp.total = total
@@ -297,8 +323,8 @@ class DeleteView(Resource):
         """
         article_id = request.args.get("article_id")
         article = Article.query.get(article_id)
-        if not article or article.status == 0:
-            return source_error("文章已经被删除或不存在")
+        if not article or not article.status:
+            return source_error(message="文章已经被删除或不存在")
 
         author = g.user
         if author.has_permission(permission=Permission.POSTER, model=article):
@@ -353,7 +379,7 @@ class LikeArticleView(Resource):
             like.article = article
             db.session.add(like)
             db.session.commit()
-        return success()
+        return success(data={"like_id": like.id})
 
 
 class FavoriteArticleView(Resource):
@@ -386,7 +412,7 @@ class FavoriteArticleView(Resource):
             favorite.article = article
             db.session.add(favorite)
             db.session.commit()
-        return success()
+        return success(data={"favorite_id": favorite.id})
 
 
 api.add_resource(PutView, "/put/", endpoint="front_article_put")
@@ -394,7 +420,7 @@ api.add_resource(QueryView, "/query/", endpoint="front_article_query")
 api.add_resource(DeleteView, "/delete/", endpoint="front_article_delete")
 api.add_resource(ViewArticleView, "/view/", endpoint="front_article_view")
 api.add_resource(LikeArticleView, "/like/", endpoint="front_article_like")
-api.add_resource(FavoriteArticleView, "/favorite/", endpoint="front_article_favorite")
+# api.add_resource(FavoriteArticleView, "/favorite/", endpoint="front_article_favorite")
 
 
 @article_bp.before_request
