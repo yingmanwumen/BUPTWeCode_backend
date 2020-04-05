@@ -33,5 +33,5 @@ api.add_resource(ImageView, "/image/", endpoint="front_image")
 
 @common_bp.before_request
 def before_request():
-    hook_front(no_user_msg="登陆状态已过期", no_token_msg="未授权")
+    hook_front()
 

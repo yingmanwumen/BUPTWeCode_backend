@@ -327,4 +327,4 @@ api.add_resource(SubCommentDeleteView, "/sub/delete/", endpoint="front_sub_comme
 
 @comment_bp.before_request
 def before_request():
-    hook_front(no_user_msg="登陆状态已过期", no_token_msg="未授权")
+    hook_front()

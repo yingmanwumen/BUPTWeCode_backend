@@ -7,21 +7,21 @@ from config import IMAGE_ICON, IMAGE_PIC
 
 
 cms_token_validator = TokenValidator(CMSUser)
-cms_cache = MyRedis(db=15, default_expire=3600, long_expire=86400)
+cms_cache = MyRedis(db=15, expire=86400)
 
-front_cache = MyRedis(db=0, default_expire=3600, long_expire=86400)
+front_cache = MyRedis(db=0, expire=86400)
 front_token_validator = TokenValidator(FrontUser)
 
 
-def hook_cms(no_user_msg="", no_token_msg=""):
-    base_hook(cms_token_validator, cms_cache, no_user_msg, no_token_msg)
+def hook_cms():
+    base_hook(cms_token_validator, cms_cache)
 
 
-def hook_front(no_user_msg="", no_token_msg=""):
-    base_hook(front_token_validator, front_cache, no_user_msg, no_token_msg)
+def hook_front():
+    base_hook(front_token_validator, front_cache)
 
 
-def base_hook(token_validator, cache, no_user_msg="", no_token_msg=""):
+def base_hook(token_validator, cache):
     # 从header中获取token值，并且将缓存加入上下文变量g中
     token = request.headers.get("Z-Token")
     g.IMAGE_ICON = IMAGE_ICON
@@ -39,8 +39,8 @@ def base_hook(token_validator, cache, no_user_msg="", no_token_msg=""):
         else:
             # 获取失败，说明token的值有问题
             g.login = False
-            g.message = no_user_msg or user
+            g.message = user
     else:
         # 没有token，直接将g.login置为假
         g.login = False
-        g.message = no_token_msg
+        g.message = "没有token"

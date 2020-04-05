@@ -7,95 +7,14 @@ from common.cache import MyRedis
 from common.hooks import hook_front
 from exts import db
 from common.restful import *
-from ..models import FrontUser, Like, Favorite
+from ..models import FrontUser, Like
 from ..forms import ArticleForm
+import shortuuid
 
 article_bp = Blueprint("article", __name__, url_prefix="/api/article")
-# 长过期时间改为一个月
-article_cache = MyRedis(db=1, default_expire=3600, long_expire=86400 * 30)
-property_cache = MyRedis(db=2, default_expire=3600, long_expire=86400 * 30)
 api = Api(article_bp)
-
-
-class CacheArticle(object):
-    """
-    这个类封装了一些与文章缓存有关的函数
-    """
-
-    @staticmethod
-    def score_list(article, score=0):
-        """
-        维护存放文章id的有序集合
-        文章缓存不存在：新增缓存
-        文章缓存存在：更新位置
-        """
-        # 将字段的值和score组装为一个dict存入
-        mapping = {article.id: score}
-        article_cache.sorted_add("SCORE_LIST", mapping)
-
-    @staticmethod
-    def set_entry(article):
-        """
-        设置存放文章不必要信息的哈希表
-        """
-        # 因为redis里面主键是唯一的，文章id在有序集合中已经使用
-        # 加上sub避免产生键名覆盖
-        article_id = "sub" + article.id
-        val = {
-            "view": 0,
-            "like": 0,
-            "comment": 0,
-            "collected": 0,
-            "tag": ""
-        }
-
-        if not article_cache.exists(article_id):
-            return article_cache.set(article_id, val, permanent=True)
-
-    @staticmethod
-    def del_entry(article):
-        """
-        删除哈希表中的有关文章信息
-        返回删除的数量
-        """
-        article_id = "sub" + article.id
-        return article_cache.delete(article_id)
-
-    @staticmethod
-    def del_score(article):
-        """
-        删除排名表中的有关信息
-        """
-        return article_cache.delete(article.id)
-
-    @staticmethod
-    def set_val(article, key, val):
-        """
-        设置保存文章有关信息的哈希表中
-        有关的键的域的值
-        参数key为字符串类型
-        """
-        article_id = "sub" + article.id
-        return article_cache.set_pointed(article_id, key, val, permanent=True)
-
-    @staticmethod
-    def incrby(article, key, amount=1):
-        """
-        将哈希表中的某个键的值加一
-        这个键的值必须能被int()转化为数字
-        参数key为字符串类型
-        """
-        article_id = "sub" + article.id
-        return article_cache.incrby(article_id, key, amount)
-
-    @staticmethod
-    def get_val(article, key):
-        """
-        获取哈希表中某个键的值
-        参数key为字符串类型
-        """
-        article_id = "sub" + article.id
-        return article_cache.get_pointed(article_id, key)[0]
+article_cache = MyRedis(db=1)
+like_cache = MyRedis(db=2)
 
 
 class PutView(Resource):
@@ -104,7 +23,7 @@ class PutView(Resource):
     不知道需不需要做改的功能
     """
 
-    # method_decorators = [login_required(Permission.VISITOR)]
+    method_decorators = [login_required(Permission.VISITOR)]
 
     def post(self):
         """
@@ -172,8 +91,6 @@ class QueryView(Resource):
                 "likes": fields.Integer,                # 点赞数
                 "views": fields.Integer,                # 浏览数
                 "comments": fields.Integer,             # 评论数
-                # "favored": fields.Boolean,              # 是否收藏文章
-                # "favorite_id": fields.String,           # 收藏id
                 "liked": fields.Boolean,                # 是否喜欢文章
                 "like_id": fields.String,               # 喜欢id
                 "tags": fields.List(fields.Nested({
@@ -197,7 +114,7 @@ class QueryView(Resource):
         })
     }
 
-    # method_decorators = [login_required(Permission.VISITOR)]
+    method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
         """
@@ -258,6 +175,10 @@ class QueryView(Resource):
         """
         resp = Data()
         resp.articles = []
+        flag, user_likes = g.user.get_likes(cache=like_cache)
+        print(flag, user_likes)
+        if not flag:
+            return Response.server_error(message=user_likes)
         for article in articles:
             data = Data()
             data.article_id = article.id
@@ -268,19 +189,7 @@ class QueryView(Resource):
             data.created = article.created.timestamp()
             data.content = article.content
 
-            # favorite = article.favorites.filter_by(user_id=g.user.id).first()
-            # if favorite:
-            #     data.favored = True
-            #     data.favorite_id = favorite.id
-            # else:
-            #     data.favored = False
-
-            like = article.likes.filter_by(user_id=g.user.id).first()
-            if like:
-                data.liked = True
-                data.like_id = like.id
-            else:
-                data.liked = False
+            data.liked, data.like_id = article.is_liked(user_likes)
 
             data.board = Data()
             data.board.board_id = article.board.id
@@ -339,90 +248,44 @@ class DeleteView(Resource):
         return success()
 
 
-class ViewArticleView(Resource):
-
-    method_decorators = [login_required(Permission.VISITOR)]
-
-    def get(self):
-        article_id = request.args.get("article_id")
-        property_cache.list_push("views", article_id)
-        return success()
-
-
 class LikeArticleView(Resource):
 
     method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
-        like_id = request.args.get("like_id")
-        if like_id:
-            like = Like.query.get(like_id)
-            if not like:
-                return params_error(message="不存在该赞")
+        article_id = request.args.get("article_id")
+        if not article_id:
+            return params_error(message="缺失文章id")
 
-            if like.user_id != g.user.id:
-                return auth_error(message="您无这个权限")
+        # 有想过这一段代码，如果被人恶意利用存缓存怎么办？对方传过来一个不存在的article_id
+        # article = Article.query.get(article_id)
+        # if not article:
+        #     return source_error(message="文章不存在")
 
-            like.status = 1 - like.status
-            db.session.commit()
-        else:
-            article_id = request.args.get("article_id")
-            if not article_id:
-                return params_error(message="缺失文章id")
-
-            article = Article.query.get(article_id)
-            if not article or not article.status:
-                return source_error(message="文章不存在")
-
-            like = Like()
-            like.user = g.user
-            like.article = article
-            db.session.add(like)
-            db.session.commit()
-        return success(data={"like_id": like.id})
-
-
-class FavoriteArticleView(Resource):
-
-    method_decorators = [login_required(Permission.VISITOR)]
-
-    def get(self):
-        favorite_id = request.args.get("like_id")
-        if favorite_id:
-            favorite = Favorite.query.get(favorite_id)
-            if not favorite:
-                return params_error(message="不存在该赞")
-
-            if favorite.user_id != g.user.id:
-                return auth_error(message="您无这个权限")
-
-            favorite.status = 1 - favorite.status
-            db.session.commit()
-        else:
-            article_id = request.args.get("article_id")
-            if not article_id:
-                return params_error(message="缺失文章id")
-
-            article = Article.query.get(article_id)
-            if not article or not article.status:
-                return source_error(message="文章不存在")
-
-            favorite = Favorite()
-            favorite.user = g.user
-            favorite.article = article
-            db.session.add(favorite)
-            db.session.commit()
-        return success(data={"favorite_id": favorite.id})
+        like_value = like_cache.get_pointed(g.user.id, article_id, json=True)[0]
+        if not like_value:
+            like_id = shortuuid.uuid()
+            new_like_value = {
+                "article_id": article_id,
+                "user_id": g.user.id
+            }
+            like_cache.set_pointed(name="new", key=like_id, value=new_like_value, json=True)
+            like_value = {
+                "like_id": like_id,
+                "status": 0
+            }
+        like_value["status"] = 1 - like_value["status"]
+        like_cache.set_pointed(g.user.id, article_id, like_value, json=True)
+        return success(data={"like_id": like_value["like_id"]})
 
 
 api.add_resource(PutView, "/put/", endpoint="front_article_put")
 api.add_resource(QueryView, "/query/", endpoint="front_article_query")
 api.add_resource(DeleteView, "/delete/", endpoint="front_article_delete")
-api.add_resource(ViewArticleView, "/view/", endpoint="front_article_view")
+# api.add_resource(ViewArticleView, "/view/", endpoint="front_article_view")
 api.add_resource(LikeArticleView, "/like/", endpoint="front_article_like")
-# api.add_resource(FavoriteArticleView, "/favorite/", endpoint="front_article_favorite")
 
 
 @article_bp.before_request
 def before_request():
-    hook_front(no_user_msg="登陆状态已过期", no_token_msg="未授权")
+    hook_front()

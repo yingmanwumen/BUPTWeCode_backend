@@ -1,53 +1,57 @@
 import redis
+import json as js
 from conf import IPHOST
 
 
 class MyRedis(object):
-    def __init__(self, db, default_expire, long_expire):
+    def __init__(self, db, expire=None):
         self.redis = redis.Redis(host=IPHOST, port=6379, decode_responses=True, db=db)
-        self.default_expire = default_expire
-        self.long_expire = long_expire
+        self.expire = expire
 
-    def _expire_key(self, name, permanent=False):
-        """
-        如果time有值，设置key的过期时间为time，否则为默认值self.expire_time
-        :param name:
-        :param time:
-        :return:
-        """
-        if not permanent:
-            self.redis.expire(name, self.default_expire)
-        else:
-            self.redis.expire(name, self.long_expire)
+    def _expire_key(self, name, permanent):
+        if not permanent and self.expire:
+            self.redis.expire(name, self.expire)
 
-    def set(self, name, val, permanent=False):
+    def set(self, name, value, permanent=False, json=False):
         """
         :param name:
-        :param val:
+        :param value:
         :param permanent:
+        :param json:
         :return: 插入成功返回true
         """
-        res = self.redis.hmset(name, val)
+        if json:
+            value = js.dumps(value)
+        res = self.redis.hmset(name, value)
         self._expire_key(name, permanent)
         return res
 
-    def set_pointed(self, name, key, value, permanent=False):
+    def set_pointed(self, name, key, value, permanent=False, json=False):
         """
         :param name:
         :param key:
         :param value:
         :param permanent:
+        :param json:
         :return: 如果返回的为0，说明只单纯修改了值，而没有新增值，如果大于零，说明新增了值
         """
+        if json:
+            value = js.dumps(value)
         res = self.redis.hset(name, key, value)
         self._expire_key(name, permanent)
         return res
 
-    def get(self, name):
-        return self.redis.hgetall(name)
+    def get(self, name, json=False):
+        res = self.redis.hgetall(name)
+        if json:
+            res = js.loads(res)
+        return res
 
-    def get_pointed(self, name, *args):
-        return self.redis.hmget(name=name, keys=args)
+    def get_pointed(self, name, *args, json=False):
+        res = self.redis.hmget(name=name, keys=args)
+        if json:
+            res = [s and js.loads(s) for s in res]
+        return res
 
     def delete(self, *args):
         """
@@ -64,31 +68,38 @@ class MyRedis(object):
         """
         return self.redis.hdel(name, *key)
 
-    def list_push(self, name, *value):
+    def list_push(self, name, *value, json=False):
         """
         往list中添加value
         :param name:
         :param value:
+        :param json:
         :return:
         """
+        if json:
+            value = [js.dumps(val) for val in value]
         return self.redis.rpush(name, *value)
 
     def list_delete(self, name, end):
         """
         从下标为0开始删除一个列表,删到end之前的元素
         :param name:
-        :param start:
+        :param end:
         :return:
         """
         return self.redis.ltrim(name, start=end, end=-1)
 
-    def list_get(self, name):
+    def list_get(self, name, json=False):
         """
         获取一个list
         :param name:
+        :param json:
         :return:
         """
-        return self.redis.lrange(name, start=0, end=-1)
+        res = self.redis.lrange(name, start=0, end=-1)
+        if json:
+            res = [js.loads(s) for s in res]
+        return res
 
     def incrby(self, name, key, amount=1):
         """
@@ -133,3 +144,13 @@ class MyRedis(object):
         返回key中的元素个数
         """
         return self.redis.zcard(key)
+
+
+if __name__ == '__main__':
+    r = MyRedis(db=2)
+    like_id = {
+        "article_id": "aaa",
+        "status": 1
+    }
+    r.set_pointed(name="kkk", key="like_id", value=like_id, json=True)
+    # print(r.get_pointed("kkk", "like_id", json=True)[0]["status"] == 1)

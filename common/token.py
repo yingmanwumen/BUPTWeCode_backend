@@ -1,5 +1,6 @@
 from config import SECRET_KEY, DEFAULT_EXPIRE_TIME_FOR_TOKEN, LONG_EXPIRE_TIME_FOR_TOKEN
 from flask import g
+from .exceptions import *
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, SignatureExpired, BadSignature
 import common.restful as restful
 import functools
@@ -35,22 +36,25 @@ class TokenValidator(object):
     def validate(self, token):
         try:
             # 转化为字典
-            if hasattr(g, "cache") and g.cache.get_pointed(token, "uid")[0]:
-                uid = g.cache.get_pointed(token, "uid")[0]
-                print('cache', uid)
-            else:
+            uid = g.cache.get_pointed(token, "uid")[0]
+            if not uid:
                 data_dict = self.s.loads(token)
                 uid = data_dict.get("uid")
-                print('dict', uid)
+            user = self.model.query.get(uid)
+            if not user:
+                return False, "该用户不存在"
+        except (ConnectionError, TimeoutError):
+            return False, "缓存炸了"
         except SignatureExpired:
             # 签名已经过期
             return False, "签名已经过期"
         except BadSignature:
             # 签名值错误
             return False, "签名值错误"
-        user = self.model.query.get(uid)
-        if not user:
-            return False, "该用户不存在"
+        except OperationalError:
+            return False, "数据库炸了"
+        except Exception:
+            return False, "未知错误"
         return True, user
 
 

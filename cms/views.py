@@ -302,5 +302,5 @@ api.add_resource(TestView, "/api/test/token/", endpoint="test")
 # hooks 用来在上下文中储存cms_user信息，防止重复写token认证语句
 @cms_bp.before_request
 def before_request():
-    hook_cms(no_user_msg="未登录", no_token_msg="没有token值")
+    hook_cms()
 

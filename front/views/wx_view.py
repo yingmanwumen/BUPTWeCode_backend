@@ -61,7 +61,7 @@ class WXLoginView(Resource):
             "session_key": session_key,
             "uid": user.id
         }
-        res = g.cache.set(name=token, val=cache_data, permanent=True)
+        res = g.cache.set(name=token, value=cache_data)
 
         # 如果缓存失败，返回缓存错误
         if not res:
@@ -157,5 +157,5 @@ api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
 
 @wx_bp.before_request
 def before_request():
-    hook_front(no_user_msg="登陆状态已过期", no_token_msg="新用户")
+    hook_front()
 

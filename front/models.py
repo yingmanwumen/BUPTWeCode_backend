@@ -1,17 +1,7 @@
-from exts import db
+from exts import db, connect_wrapper
 from cms.models import Permission
 from datetime import datetime
 import shortuuid
-
-
-class Favorite(db.Model):
-    __tablename__ = "favorites"
-    id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
-    status = db.Column(db.Integer, default=1)
-    created = db.Column(db.DateTime, default=datetime.now)
-
-    article_id = db.Column(db.String(50), db.ForeignKey("articles.id"))
-    user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
 
 
 class Like(db.Model):
@@ -30,7 +20,7 @@ class Rate(db.Model):
     status = db.Column(db.Integer, default=1)
     created = db.Column(db.DateTime, default=datetime.now)
 
-    commend_id = db.Column(db.String(50), db.ForeignKey("comments.id"))
+    comment_id = db.Column(db.String(50), db.ForeignKey("comments.id"))
     user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
 
 
@@ -52,7 +42,6 @@ class FrontUser(db.Model):
 
     articles = db.relationship("Article", backref="author", lazy="dynamic")
     comments = db.relationship("Comment", backref="author", lazy="dynamic")
-    favorites = db.relationship("Favorite", backref="user", lazy="dynamic")
     likes = db.relationship("Like", backref="user", lazy="dynamic")
     rates = db.relationship("Rate", backref="user", lazy="dynamic")
 
@@ -88,3 +77,39 @@ class FrontUser(db.Model):
                     return True
                 return False
         return False
+
+    @connect_wrapper
+    def get_likes(self, cache):
+        """
+        从缓存中获取用户所有点过赞的文章，如果缓存中获取不到，把数据库中的内容更新到缓存中
+        """
+        user_likes = cache.get(self.id)
+        if not user_likes:
+            user_likes = dict(init=1)
+            cache.set_pointed(self.id, "init", 1)
+            for like in self.likes.all():
+                like_value = {
+                    "like_id": like.id,
+                    "status": like.status
+                }
+                cache.set_pointed(self.id, like.article_id, like_value, json=True)
+                user_likes[like.article_id] = like_value
+        return user_likes
+
+    @connect_wrapper
+    def get_rates(self, cache):
+        """
+        从缓存中获取用户所有点过赞的评论，如果缓存中获取不到，把数据库中的内容更新到缓存中
+        """
+        user_rates = cache.get(self.id)
+        if not user_rates:
+            user_rates = dict(init=1)
+            cache.set_pointed(self.id, "init", 1)
+            for rate in self.rates.all():
+                rate_value = {
+                    "rate_id": rate.id,
+                    "status": rate.status
+                }
+                cache.set_pointed(self.id, rate.comment_id, rate_value, json=True)
+                user_rates[rate.comment_id] = rate_value
+        return user_rates

@@ -1,5 +1,6 @@
 from exts import db
 from datetime import datetime
+from flask import g
 import shortuuid
 
 
@@ -34,13 +35,28 @@ class Article(db.Model):
     author_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
 
     comments = db.relationship("Comment", backref="article", lazy="dynamic")
-    favorites = db.relationship("Favorite", backref="article", lazy="dynamic")
     likes = db.relationship("Like", backref="article", lazy="dynamic")
     tags = db.relationship("Tag", secondary=article_tag_table, backref=db.backref("articles"))
 
     def add_tags(self, *tags):
         for tag in tags:
             self.tags.append(tag)
+
+    def is_liked(self, user_likes=None):
+        """
+        如果被用户喜欢，返回True和like的id，否则返回False和空值
+        :param user_likes:
+        :return:
+        """
+        like_id = None
+        if user_likes:
+            like_id = user_likes.get(self.id)
+        else:
+            like = self.likes.filter_by(user_id=g.user.id).first()
+            if like:
+                like_id = like.id
+        liked = True if like_id else False
+        return liked, like_id
 
 
 class Comment(db.Model):
@@ -56,6 +72,22 @@ class Comment(db.Model):
 
     sub_comments = db.relationship("SubComment", backref="comment", lazy="dynamic")
     rates = db.relationship("Rate", backref="comment", lazy="dynamic")
+
+    def is_rated(self, user_rates=None):
+        """
+        如果被用户点赞了，返回True和rate_id，否则返回False和None
+        :param user_rates:
+        :return:
+        """
+        rate_id = None
+        if user_rates:
+            rate_id = user_rates.get(self.id)
+        else:
+            rate = self.rates.filter_by(user_id=g.user.id).first()
+            if rate:
+                rate_id = rate.id
+        rated = True if rate_id else False
+        return rated, rate_id
 
 
 class SubComment(db.Model):
