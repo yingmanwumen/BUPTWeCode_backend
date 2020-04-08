@@ -1,7 +1,10 @@
 from exts import db
 from datetime import datetime
 from flask import g
+from sqlalchemy import func
+from front.models import Like
 import shortuuid
+import json
 
 
 article_tag_table = db.Table("article_tag_table",
@@ -44,20 +47,30 @@ class Article(db.Model):
 
     def is_liked(self, user_likes=None):
         """
-        如果被用户喜欢，返回True和like的id，否则返回False和空值
-        :param user_likes:
-        :return:
+        如果被用户喜欢，返回True，否则返回False
         """
-        like_id = None
         if user_likes:
-            like_id = user_likes.get(self.id)
-        else:
-            like = self.likes.filter_by(user_id=g.user.id).first()
-            if like:
-                like_id = like.id
-        liked = True if like_id else False
-        return liked, like_id
+            value = user_likes.get(self.id)
+            if not value:
+                return False
+            value = json.loads(value)
+            return value["status"] == 1
+        like = self.likes.filter_by(user_id=g.user.id).first()
+        return like is not None
 
+    def set_property_cache(self, cache):
+        views = self.views
+        likes = self.likes.filter_by(status=1).with_entities(func.count(Like.id)).scalar()
+        comments = self.comments.filter_by(status=1).with_entities(func.count(Comment.id)).scalar()
+        res = dict(likes=likes, comments=comments, views=views)
+        cache.set(self.id, res)
+        return res
+
+    def get_property_cache(self, cache):
+        pro = cache.get(self.id)
+        if not pro:
+            pro = self.set_property_cache(cache)
+        return pro
 
 class Comment(db.Model):
     __tablename__ = "comments"
@@ -76,18 +89,11 @@ class Comment(db.Model):
     def is_rated(self, user_rates=None):
         """
         如果被用户点赞了，返回True和rate_id，否则返回False和None
-        :param user_rates:
-        :return:
         """
-        rate_id = None
-        if user_rates:
-            rate_id = user_rates.get(self.id)
-        else:
-            rate = self.rates.filter_by(user_id=g.user.id).first()
-            if rate:
-                rate_id = rate.id
-        rated = True if rate_id else False
-        return rated, rate_id
+        if user_rates and user_rates.get(self.id):
+            return True
+        rate = self.rates.filter_by(user_id=g.user.id).first()
+        return rate is not None
 
 
 class SubComment(db.Model):

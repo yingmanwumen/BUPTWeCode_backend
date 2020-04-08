@@ -8,11 +8,11 @@ class MyRedis(object):
         self.redis = redis.Redis(host=IPHOST, port=6379, decode_responses=True, db=db)
         self.expire = expire
 
-    def _expire_key(self, name, permanent):
+    def expire_key(self, name, permanent):
         if not permanent and self.expire:
             self.redis.expire(name, self.expire)
 
-    def set(self, name, value, permanent=False, json=False):
+    def set(self, name, value, permanent=False):
         """
         :param name:
         :param value:
@@ -20,10 +20,8 @@ class MyRedis(object):
         :param json:
         :return: 插入成功返回true
         """
-        if json:
-            value = js.dumps(value)
         res = self.redis.hmset(name, value)
-        self._expire_key(name, permanent)
+        self.expire_key(name, permanent)
         return res
 
     def set_pointed(self, name, key, value, permanent=False, json=False):
@@ -38,7 +36,7 @@ class MyRedis(object):
         if json:
             value = js.dumps(value)
         res = self.redis.hset(name, key, value)
-        self._expire_key(name, permanent)
+        self.expire_key(name, permanent)
         return res
 
     def get(self, name, json=False):
@@ -101,7 +99,7 @@ class MyRedis(object):
             res = [js.loads(s) for s in res]
         return res
 
-    def incrby(self, name, key, amount=1):
+    def hincrby(self, name, key, amount=1):
         """
         将键为name的散列表中映射的值增加amount
         name：键名

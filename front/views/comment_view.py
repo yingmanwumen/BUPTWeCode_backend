@@ -5,6 +5,7 @@ from common.restful import *
 from common.hooks import hook_front
 from common.token import login_required, Permission
 from common.models import Article, Comment, SubComment
+from common.cache import MyRedis
 from ..forms import CommentForm, SubCommentForm
 from ..models import FrontUser, Rate
 from exts import db
@@ -12,6 +13,9 @@ from exts import db
 
 comment_bp = Blueprint("comment", __name__, url_prefix="/api/comment")
 api = Api(comment_bp)
+article_cache = MyRedis(db=1, expire=3600)
+comment_cache = MyRedis(db=3, expire=3600)
+rate_cache = MyRedis(db=4, expire=3600)
 
 
 class CommentPutView(Resource):
@@ -90,7 +94,9 @@ class CommentQueryView(Resource):
                 "images": fields.List(fields.String),
                 "created": fields.Integer,
                 "comment_id": fields.String,
-                "total": fields.Integer
+                "total": fields.Integer,
+                "rates": fields.Integer,
+                "rated": fields.Boolean
             })),
             "total": fields.Integer
         })
@@ -110,6 +116,7 @@ class CommentQueryView(Resource):
         if not article:
             return source_error(message="文章不存在")
 
+        article_cache.hincrby("views", article_id)
         comments = article.comments.filter_by(status=1)
         total = comments.with_entities(func.count(Comment.id)).scalar()
         comments = comments.order_by(Comment.created.asc())[offset:offset+limit]
@@ -126,11 +133,14 @@ class CommentQueryView(Resource):
         resp = Data()
         resp.total = total
         resp.comments = []
+        user_rates = g.user.get_all_appreciation(cache=rate_cache, attr="rates")
         for comment in comments:
             data = Data()
             data.content = comment.content
             data.created = comment.created.timestamp()
             data.comment_id = comment.id
+            data.rated = comment.is_rated(user_rates)
+            data.rates = comment.rates.with_entities(func.count(Rate.id)).scalar()
 
             data.author = Data()
             data.author.author_id = comment.author_id
@@ -291,27 +301,16 @@ class RateCommentView(Resource):
     method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
-        rate_id = request.args.get("rate_id")
-        if rate_id:
-            rate = Rate.query.get(rate_id)
-            if not rate:
-                return source_error(message="不存在该点赞")
-            if rate.user_id != g.user.id:
-                return auth_error(message="您无权操作")
-            rate.status = 1 - rate.status
-            db.session.commit()
-        else:
-            comment_id = request.args.get("comment_id")
-            if not comment_id:
-                return params_error(message="缺失评论id")
-            comment = Comment.query.get(comment_id)
-            if not comment:
-                return source_error(message="不存在该点赞")
-            rate = Rate()
-            rate.user = g.user
-            rate.comment = comment
-            db.session.add(rate)
-            db.session.commit()
+        comment_id = request.args.get("comment_id")
+        if not comment_id:
+            return params_error(message="缺失评论id")
+
+        # 有想过这一段代码，如果被人恶意利用存缓存怎么办？对方传过来一个不存在的comment_id
+        # comment = Comment.query.get(comment_id)
+        # if not comment:
+        #     return source_error(message="评论不存在")
+
+        g.user.set_one_appreciation(cache=rate_cache, attr="rates", attr_id=comment_id)
         return success()
 
 

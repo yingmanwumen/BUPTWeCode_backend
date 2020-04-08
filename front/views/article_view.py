@@ -9,12 +9,12 @@ from exts import db
 from common.restful import *
 from ..models import FrontUser, Like
 from ..forms import ArticleForm
-import shortuuid
+
 
 article_bp = Blueprint("article", __name__, url_prefix="/api/article")
 api = Api(article_bp)
 article_cache = MyRedis(db=1)
-like_cache = MyRedis(db=2)
+like_cache = MyRedis(db=2, expire=3600)
 
 
 class PutView(Resource):
@@ -175,21 +175,23 @@ class QueryView(Resource):
         """
         resp = Data()
         resp.articles = []
-        flag, user_likes = g.user.get_likes(cache=like_cache)
-        print(flag, user_likes)
-        if not flag:
-            return Response.server_error(message=user_likes)
+        resp.total = total
+        user_likes = g.user.get_all_appreciation(cache=like_cache, attr="likes")
+        # print(user_likes)
         for article in articles:
             data = Data()
             data.article_id = article.id
             data.title = article.title
-            data.likes = article.likes.with_entities(func.count(Like.id)).scalar()
-            data.views = article.views
-            data.comments = article.comments.filter_by(status=1).with_entities(func.count(Comment.id)).scalar()
             data.created = article.created.timestamp()
             data.content = article.content
 
-            data.liked, data.like_id = article.is_liked(user_likes)
+            article_properties = article.get_property_cache(article_cache)
+            # print(article_properties)
+            data.likes = article_properties["likes"]
+            data.views = article_properties["views"]
+            data.comments = article_properties["comments"]
+
+            data.liked = article.is_liked(user_likes)
 
             data.board = Data()
             data.board.board_id = article.board.id
@@ -211,7 +213,6 @@ class QueryView(Resource):
 
             resp.articles.append(data)
 
-        resp.total = total
         return Response.success(data=resp)
 
 
@@ -262,21 +263,8 @@ class LikeArticleView(Resource):
         # if not article:
         #     return source_error(message="文章不存在")
 
-        like_value = like_cache.get_pointed(g.user.id, article_id, json=True)[0]
-        if not like_value:
-            like_id = shortuuid.uuid()
-            new_like_value = {
-                "article_id": article_id,
-                "user_id": g.user.id
-            }
-            like_cache.set_pointed(name="new", key=like_id, value=new_like_value, json=True)
-            like_value = {
-                "like_id": like_id,
-                "status": 0
-            }
-        like_value["status"] = 1 - like_value["status"]
-        like_cache.set_pointed(g.user.id, article_id, like_value, json=True)
-        return success(data={"like_id": like_value["like_id"]})
+        g.user.set_one_appreciation(cache=like_cache, attr="likes", attr_id=article_id)
+        return success()
 
 
 api.add_resource(PutView, "/put/", endpoint="front_article_put")

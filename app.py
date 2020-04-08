@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 
-from exts import db, mail
+from exts import db, mail, scheduler
 
 from cms import cms_bp
 from front.views import BPS
@@ -19,6 +19,8 @@ app.register_blueprint(cms_bp)
 
 db.init_app(app)
 mail.init_app(app)
+scheduler.init_app(app)
+
 wtforms_json.init()
 
 

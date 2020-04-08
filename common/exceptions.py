@@ -1,4 +1,5 @@
 from pymysql.err import OperationalError
+from redis.exceptions import ConnectionError, TimeoutError
 
 
 class DIYException(Exception):

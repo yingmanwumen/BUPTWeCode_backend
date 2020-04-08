@@ -53,8 +53,6 @@ class TokenValidator(object):
             return False, "签名值错误"
         except OperationalError:
             return False, "数据库炸了"
-        except Exception:
-            return False, "未知错误"
         return True, user
 
 
@@ -66,10 +64,15 @@ class login_required(object):
     def __call__(self, view):
         @functools.wraps(view)
         def wrapper(*args, **kwargs):
-            if not g.login:
-                return restful.token_error(message=g.message)
-            if g.user.has_permission(permission=self.permission):
-                return view(*args, **kwargs)
-            return restful.auth_error(message="您没有权限访问")        # restful.Response.auth_error
+            try:
+                if not g.login:
+                    return restful.token_error(message=g.message)
+                if g.user.has_permission(permission=self.permission):
+                    return view(*args, **kwargs)
+                return restful.auth_error(message="您没有权限访问")
+            except (ConnectionError, TimeoutError):
+                return restful.source_error(message="缓存炸了")
+            except OperationalError:
+                return restful.source_error(message="数据库炸了")
         return wrapper
 

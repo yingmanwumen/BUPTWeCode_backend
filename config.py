@@ -10,8 +10,8 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 # SECRET_KEY = os.urandom(24)
 SECRET_KEY = b')\xf6\x7f\xb3\x82iC\xce\xc5\x18\x84\xf2\xab\x12V\x9e\x80\xabKg\xa6\x12\xdcL'
 
-DEFAULT_EXPIRE_TIME_FOR_TOKEN = 3600  # 默认token过期时间
-LONG_EXPIRE_TIME_FOR_TOKEN = 86400  # 较长的token过期时间
-
 IMAGE_ICON = "?imageView2/1/w/64/h/64/q/75"
 IMAGE_PIC = "?imageView2/0/q/75"
+
+SCHEDULER_API_ENABLED = True
+JOBS = []

@@ -9,8 +9,8 @@ from exts import db
 
 import common.wxapi as wxapi
 
-wx_bp = Blueprint("wx", __name__, url_prefix="/api/wx")
-api = Api(wx_bp)
+user_bp = Blueprint("user", __name__, url_prefix="/api/user")
+api = Api(user_bp)
 
 
 class WXLoginView(Resource):
@@ -151,11 +151,37 @@ class WXUserInfoView(Resource):
         return Response.success(data=resp)
 
 
-api.add_resource(WXLoginView, "/login/", endpoint="wx_login")
+class FollowView(Resource):
+    def get(self):
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return params_error(message="缺失用户id")
+        user = FrontUser.query.get(user_id)
+        if not user:
+            return source_error(message="用户不存在")
+        g.user.follow(user)
+        return success()
+
+
+class UnFollowView(Resource):
+    def get(self):
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return params_error(message="缺失用户id")
+        user = FrontUser.query.get(user_id)
+        if not user:
+            return source_error(message="用户不存在")
+        g.user.unfollow(user)
+        return success()
+
+
+api.add_resource(WXLoginView, "/login/", endpoint="front_user_login_vx")
 api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
+api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
+api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
 
 
-@wx_bp.before_request
+@user_bp.before_request
 def before_request():
     hook_front()
 
