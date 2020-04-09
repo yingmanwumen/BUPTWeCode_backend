@@ -1,4 +1,4 @@
-from pymysql.err import OperationalError
+from sqlalchemy.exc import OperationalError
 from redis.exceptions import ConnectionError, TimeoutError
 
 

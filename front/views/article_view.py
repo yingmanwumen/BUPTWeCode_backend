@@ -2,19 +2,17 @@ from flask import Blueprint, request, g
 from sqlalchemy import func
 from flask_restful import Resource, Api, fields, marshal_with
 from common.token import login_required, Permission
-from common.models import Board, Article, Comment, Tag
-from common.cache import MyRedis
+from common.models import Board, Article, Tag
+from common.cache import like_cache, article_cache
 from common.hooks import hook_front
 from exts import db
 from common.restful import *
-from ..models import FrontUser, Like
+from ..models import FrontUser
 from ..forms import ArticleForm
 
 
 article_bp = Blueprint("article", __name__, url_prefix="/api/article")
 api = Api(article_bp)
-article_cache = MyRedis(db=1)
-like_cache = MyRedis(db=2, expire=3600)
 
 
 class PutView(Resource):
@@ -61,13 +59,6 @@ class PutView(Resource):
 
         db.session.add(article)
         db.session.commit()
-
-        # 接下来，维护缓存中的两张表
-        # 一个有序集合：存储id与score
-        # 一个hash表，存储文章的主要信息
-        # 为了便于使用，在外面封装有关操作的函数
-        # CacheArticle.score_list(article)
-        # CacheArticle.set_entry(article)
 
         return success()
 
@@ -263,7 +254,7 @@ class LikeArticleView(Resource):
         # if not article:
         #     return source_error(message="文章不存在")
 
-        g.user.set_one_appreciation(cache=like_cache, attr="likes", attr_id=article_id)
+        g.user.set_one_appreciation(cache=like_cache, sub_cache=article_cache, attr="likes", attr_id=article_id)
         return success()
 
 

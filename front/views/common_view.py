@@ -1,4 +1,4 @@
-from flask import Blueprint, request, g
+from flask import Blueprint
 from flask_restful import Resource, Api, fields, marshal_with
 from common.restful import Response, Data
 from common.image_uploader import generate_uptoken

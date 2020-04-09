@@ -1,4 +1,4 @@
-from config import SECRET_KEY, DEFAULT_EXPIRE_TIME_FOR_TOKEN, LONG_EXPIRE_TIME_FOR_TOKEN
+from config import SECRET_KEY
 from flask import g
 from .exceptions import *
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, SignatureExpired, BadSignature
@@ -22,7 +22,7 @@ class Permission(object):
 
 def generate_token(uid, permanent=False):
     # 第一个参数为session用的密匙，第二个参数是token的有效期，单位为秒
-    expire_time = LONG_EXPIRE_TIME_FOR_TOKEN if permanent else DEFAULT_EXPIRE_TIME_FOR_TOKEN
+    expire_time = 86400
     s = Serializer(SECRET_KEY, expires_in=expire_time)
     token = s.dumps({"uid": uid}).decode("ascii")
     return token

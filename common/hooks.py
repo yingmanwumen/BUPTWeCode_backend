@@ -1,15 +1,12 @@
 from flask import request, g
 from .token import TokenValidator
-from .cache import MyRedis
+from .cache import cms_cache, front_cache
 from cms.models import CMSUser
 from front.models import FrontUser
 from config import IMAGE_ICON, IMAGE_PIC
 
 
 cms_token_validator = TokenValidator(CMSUser)
-cms_cache = MyRedis(db=15, expire=86400)
-
-front_cache = MyRedis(db=0, expire=86400)
 front_token_validator = TokenValidator(FrontUser)
 
 

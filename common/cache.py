@@ -144,11 +144,9 @@ class MyRedis(object):
         return self.redis.zcard(key)
 
 
-if __name__ == '__main__':
-    r = MyRedis(db=2)
-    like_id = {
-        "article_id": "aaa",
-        "status": 1
-    }
-    r.set_pointed(name="kkk", key="like_id", value=like_id, json=True)
-    # print(r.get_pointed("kkk", "like_id", json=True)[0]["status"] == 1)
+front_cache = MyRedis(db=0, expire=86400)
+article_cache = MyRedis(db=1, expire=3600)
+like_cache = MyRedis(db=2, expire=3600)
+comment_cache = MyRedis(db=3, expire=3600)
+rate_cache = MyRedis(db=4, expire=3600)
+cms_cache = MyRedis(db=15, expire=86400)

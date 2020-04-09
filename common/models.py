@@ -2,7 +2,7 @@ from exts import db
 from datetime import datetime
 from flask import g
 from sqlalchemy import func
-from front.models import Like
+from front.models import Like, Rate
 import shortuuid
 import json
 
@@ -72,6 +72,14 @@ class Article(db.Model):
             pro = self.set_property_cache(cache)
         return pro
 
+    def cache_increase(self, cache, field, amount=1):
+        if not cache.exists(self.id):
+            self.set_property_cache(cache)
+        cache.hincrby(self.id, field, amount)
+        if field == "views":
+            cache.hincrby("views", self.id)
+
+
 class Comment(db.Model):
     __tablename__ = "comments"
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
@@ -94,6 +102,24 @@ class Comment(db.Model):
             return True
         rate = self.rates.filter_by(user_id=g.user.id).first()
         return rate is not None
+
+    def set_property_cache(self, cache):
+        rates = self.rates.filter_by(status=1).with_entities(func.count(Rate.id)).scalar()
+        sub_comments = self.sub_comments.filter_by(status=1).with_entities(func.count(SubComment.id)).scalar()
+        res = dict(rates=rates, sub_comments=sub_comments)
+        cache.set(self.id, res)
+        return res
+
+    def get_property_cache(self, cache):
+        pro = cache.get(self.id)
+        if not pro:
+            pro = self.set_property_cache(cache)
+        return pro
+
+    def cache_increase(self, cache, field, amount=1):
+        if not cache.exists(self.id):
+            self.set_property_cache(cache)
+        cache.hincrby(self.id, field, amount)
 
 
 class SubComment(db.Model):

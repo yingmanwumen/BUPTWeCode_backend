@@ -1,4 +1,4 @@
-from flask import Blueprint, request, g
+from flask import Blueprint
 from flask_restful import Resource, Api, fields, marshal_with
 from sqlalchemy import func
 from common.models import Board

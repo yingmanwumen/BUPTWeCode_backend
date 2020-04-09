@@ -123,7 +123,7 @@ class FrontUser(db.Model):
             pipeline.execute()
         return user_data
 
-    def set_one_appreciation(self, cache, attr, attr_id):
+    def set_one_appreciation(self, cache, sub_cache, attr, attr_id):
         """
         用于用户对单个文章/评论进行赞操作
         """
@@ -144,6 +144,10 @@ class FrontUser(db.Model):
         # 将点赞情况中的status置为其反面, 并将其储存进缓存中
         attr_value["status"] = 1 - attr_value["status"]
         cache.set_pointed(self.id, attr_id, attr_value, json=True)
+
+        # 更新子缓存数据
+        amount = 1 if attr_value["status"] else -1
+        sub_cache.hincrby(attr_id, attr, amount)
 
         # 状态变化过的点赞要记录在一个队列中，用于后期数据库统一更新点赞情况
         new_attr_value = {

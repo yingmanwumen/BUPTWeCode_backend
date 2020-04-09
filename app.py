@@ -20,6 +20,7 @@ app.register_blueprint(cms_bp)
 db.init_app(app)
 mail.init_app(app)
 scheduler.init_app(app)
+scheduler.start()
 
 wtforms_json.init()
 

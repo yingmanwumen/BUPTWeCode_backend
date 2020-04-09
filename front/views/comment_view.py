@@ -5,17 +5,14 @@ from common.restful import *
 from common.hooks import hook_front
 from common.token import login_required, Permission
 from common.models import Article, Comment, SubComment
-from common.cache import MyRedis
+from common.cache import article_cache, rate_cache, comment_cache
 from ..forms import CommentForm, SubCommentForm
-from ..models import FrontUser, Rate
+from ..models import FrontUser
 from exts import db
 
 
 comment_bp = Blueprint("comment", __name__, url_prefix="/api/comment")
 api = Api(comment_bp)
-article_cache = MyRedis(db=1, expire=3600)
-comment_cache = MyRedis(db=3, expire=3600)
-rate_cache = MyRedis(db=4, expire=3600)
 
 
 class CommentPutView(Resource):
@@ -45,6 +42,7 @@ class CommentPutView(Resource):
         comment.article = article
         db.session.add(comment)
         db.session.commit()
+        article.cache_increase(article_cache, field="comments")
         return success()
 
 
@@ -69,6 +67,7 @@ class CommentDeleteView(Resource):
 
         comment.status = 0
         db.session.commit()
+        comment.article.cache_increase(article_cache, field="comments", amount=-1)
         return success()
 
 
@@ -94,7 +93,7 @@ class CommentQueryView(Resource):
                 "images": fields.List(fields.String),
                 "created": fields.Integer,
                 "comment_id": fields.String,
-                "total": fields.Integer,
+                "sub_comments": fields.Integer,
                 "rates": fields.Integer,
                 "rated": fields.Boolean
             })),
@@ -116,10 +115,13 @@ class CommentQueryView(Resource):
         if not article:
             return source_error(message="文章不存在")
 
-        article_cache.hincrby("views", article_id)
         comments = article.comments.filter_by(status=1)
         total = comments.with_entities(func.count(Comment.id)).scalar()
         comments = comments.order_by(Comment.created.asc())[offset:offset+limit]
+
+        if not offset:
+            article.cache_increase(article_cache, field="views")
+
         return self._generate_response(comments, total)
 
     @marshal_with(resource_fields)
@@ -140,7 +142,10 @@ class CommentQueryView(Resource):
             data.created = comment.created.timestamp()
             data.comment_id = comment.id
             data.rated = comment.is_rated(user_rates)
-            data.rates = comment.rates.with_entities(func.count(Rate.id)).scalar()
+
+            comment_properties = comment.get_property_cache(comment_cache)
+            data.rates = comment_properties["rates"]
+            data.sub_comments = comment_properties["sub_comments"]
 
             data.author = Data()
             data.author.author_id = comment.author_id
@@ -153,7 +158,6 @@ class CommentQueryView(Resource):
             else:
                 data.images = []
 
-            data.total = comment.sub_comments.filter_by(status=1).with_entities(func.count(SubComment.id)).scalar()
             resp.comments.append(data)
         return Response.success(data=resp)
 
@@ -191,6 +195,7 @@ class SubCommentPutView(Resource):
 
         db.session.add(sub_comment)
         db.session.commit()
+        comment.cache_increase(comment_cache, field="sub_comments")
         return success()
 
 
@@ -215,6 +220,7 @@ class SubCommentDeleteView(Resource):
 
         sub_comment.status = 0
         db.session.commit()
+        sub_comment.comment.cache_increase(comment_cache, field="sub_comments", amount=-1)
         return success()
 
 
@@ -310,7 +316,7 @@ class RateCommentView(Resource):
         # if not comment:
         #     return source_error(message="评论不存在")
 
-        g.user.set_one_appreciation(cache=rate_cache, attr="rates", attr_id=comment_id)
+        g.user.set_one_appreciation(cache=rate_cache, sub_cache=comment_cache, attr="rates", attr_id=comment_id)
         return success()
 
 
