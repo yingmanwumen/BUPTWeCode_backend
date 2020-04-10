@@ -9,6 +9,7 @@ from common.cache import article_cache, rate_cache, comment_cache
 from ..forms import CommentForm, SubCommentForm
 from ..models import FrontUser, Notification
 from exts import db
+import shortuuid
 
 
 comment_bp = Blueprint("comment", __name__, url_prefix="/api/comment")
@@ -37,12 +38,13 @@ class CommentPutView(Resource):
         content = form.content.data
         images = ",".join([image + g.IMAGE_PIC for image in form.images.data])
 
-        comment = Comment(content=content, images=images)
+        comment_id = shortuuid.uuid()
+        comment = Comment(id=comment_id, content=content, images=images)
         comment.author = g.user
         comment.article = article
 
         if article.author_id != g.user.id:
-            notification = Notification(category=4, link_id=comment.id,
+            notification = Notification(category=4, link_id=comment_id,
                                         sender_content=comment.content, acceptor_content=article.title)
             notification.sender = g.user
             notification.acceptor = article.author
