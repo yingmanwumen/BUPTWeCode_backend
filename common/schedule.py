@@ -60,13 +60,14 @@ def save_likes():
                     like.user = user
                     like.article = article
 
-                    notification = Notification(category=1, link_id=article_id,
-                                                sender_content="赞了你的帖子", acceptor_content=article.title)
-                    notification.acceptor = article.author
-                    notification.sender = user
+                    if user.id != article.author_id:
+                        notification = Notification(category=1, link_id=article_id,
+                                                    sender_content="赞了你的帖子", acceptor_content=article.title)
+                        notification.acceptor = article.author
+                        notification.sender = user
+                        db.session.add(notification)
 
                     db.session.add(like)
-                    db.session.add(notification)
                     count += 1
     db.session.commit()
     return count
@@ -93,12 +94,13 @@ def save_rates():
                     rate.user = user
                     rate.comment = comment
 
-                    notification = Notification(category=2, link_id=comment_id,
-                                                sender_content="赞了你的评论", acceptor_content=comment.content)
-                    notification.acceptor = comment.author
-                    notification.sender = user
+                    if user.id != comment.author_id:
+                        notification = Notification(category=2, link_id=comment_id,
+                                                    sender_content="赞了你的评论", acceptor_content=comment.content)
+                        notification.acceptor = comment.author
+                        notification.sender = user
+                        db.session.add(notification)
 
-                    db.session.add(notification)
                     db.session.add(rate)
                     count += 1
     db.session.commit()

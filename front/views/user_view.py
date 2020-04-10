@@ -210,7 +210,7 @@ class NotifyView(Resource):
     def get(self):
         offset = request.args.get("offset", 0, type=int)
         limit = request.args.get("limit", 10, type=int)
-        notifications = g.user.notifications.order_by(Notification.created.desc())
+        notifications = Notification.query.filter_by(acceptor_id=g.user.id).order_by(Notification.created.desc())
         total = notifications.with_entities(func.count(Notification.id)).scalar()
         notifications = notifications[offset:offset+limit]
         return self._generate_response(total, notifications)
@@ -223,10 +223,10 @@ class NotifyView(Resource):
         new = 0
         for notification in notifications:
             data = Data()
-            data.visited = notification.visited
+            data.visited = notification.visited == 1
             data.sender_content = notification.sender_content
             data.acceptor_content = notification.acceptor_content
-            data.like_id = notification.link_id
+            data.link_id = notification.link_id
             data.category = notification.category
             if not notification.visited:
                 notification.visited = 1
@@ -234,12 +234,13 @@ class NotifyView(Resource):
 
             data.sender = Data()
             data.sender.username = notification.sender.username
-            data.sender.sender_id = notification.sender.sender_id
+            data.sender.sender_id = notification.sender.id
             data.sender.avatar = notification.sender.avatar
             data.sender.username = notification.sender.username
 
             resp.notifications.append(data)
         resp.new = new
+        db.session.commit()
         return Response.success(data=resp)
 
 
