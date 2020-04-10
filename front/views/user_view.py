@@ -4,7 +4,8 @@ from common.restful import *
 from common.token import generate_token, login_required, Permission
 from common.hooks import hook_front
 from ..forms import WXUserInfoForm, WXLoginForm
-from ..models import FrontUser
+from sqlalchemy import func
+from ..models import FrontUser, Notification
 from exts import db
 
 import common.wxapi as wxapi
@@ -152,6 +153,9 @@ class WXUserInfoView(Resource):
 
 
 class FollowView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
     def get(self):
         user_id = request.args.get("user_id")
         if not user_id:
@@ -164,6 +168,9 @@ class FollowView(Resource):
 
 
 class UnFollowView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
     def get(self):
         user_id = request.args.get("user_id")
         if not user_id:
@@ -175,10 +182,81 @@ class UnFollowView(Resource):
         return success()
 
 
+class NotifyView(Resource):
+    resource_fields = {
+        "code": fields.Integer,
+        "message": fields.String,
+        "data": fields.Nested({
+            "notifications": fields.List(fields.Nested({
+                "sender": fields.Nested({
+                    "sender_id": fields.String,
+                    "username": fields.String,
+                    "avatar": fields.String,
+                    "gender": fields.Integer,
+                }),
+                "visited": fields.Boolean,
+                "sender_content": fields.String,
+                "category": fields.Integer,
+                "acceptor_content": fields.String,
+                "link_id": fields.String
+            })),
+            "new": fields.Integer,
+            "total": fields.Integer
+        })
+    }
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+        notifications = g.user.notifications.order_by(Notification.created.desc())
+        total = notifications.with_entities(func.count(Notification.id)).scalar()
+        notifications = notifications[offset:offset+limit]
+        return self._generate_response(total, notifications)
+
+    @marshal_with(resource_fields)
+    def _generate_response(self, total, notifications):
+        resp = Data()
+        resp.total = total
+        resp.notifications = []
+        new = 0
+        for notification in notifications:
+            data = Data()
+            data.visited = notification.visited
+            data.sender_content = notification.sender_content
+            data.acceptor_content = notification.acceptor_content
+            data.like_id = notification.link_id
+            data.category = notification.category
+            if not notification.visited:
+                notification.visited = 1
+                new += 1
+
+            data.sender = Data()
+            data.sender.username = notification.sender.username
+            data.sender.sender_id = notification.sender.sender_id
+            data.sender.avatar = notification.sender.avatar
+            data.sender.username = notification.sender.username
+
+            resp.notifications.append(data)
+        resp.new = new
+        return Response.success(data=resp)
+
+
+class RotationView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        return success()
+
+
 api.add_resource(WXLoginView, "/login/", endpoint="front_user_login_vx")
 api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
 api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
 api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
+api.add_resource(NotifyView, "/notify/", endpoint="front_user_notify")
+api.add_resource(RotationView, "/rotation/", endpoint="front_user_rotation")
 
 
 @user_bp.before_request

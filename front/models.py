@@ -32,6 +32,32 @@ class Follow(db.Model):
     created = db.Column(db.DateTime, default=datetime.now)
 
 
+class Notification(db.Model):
+    """
+    category类型
+    1.文章获赞             0b0001 = 1
+    2.评论获赞             0b0010 = 2
+    3.文章获得评论          0b0100 = 4
+    4.评论下获得楼中楼回复   0b1000 = 8
+    """
+    __tablename__ = "notifications"
+    id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
+    category = db.Column(db.Integer)
+    sender_content = db.Column(db.Text)
+    acceptor_content = db.Column(db.Text)
+    link_id = db.Column(db.String(50))
+
+    visited = db.Column(db.Integer, default=0)
+    status = db.Column(db.Integer, default=1)
+    created = db.Column(db.DateTime, default=datetime.now)
+
+    sender_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+    acceptor_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+
+    sender = db.relationship("FrontUser", backref="broadcasts", foreign_keys=[sender_id])
+    acceptor = db.relationship("FrontUser", backref="notifications", foreign_keys=[acceptor_id])
+
+
 class FrontUser(db.Model):
     __tablename__ = "front_user"
     # __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}

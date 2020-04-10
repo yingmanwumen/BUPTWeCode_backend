@@ -7,7 +7,7 @@ from common.token import login_required, Permission
 from common.models import Article, Comment, SubComment
 from common.cache import article_cache, rate_cache, comment_cache
 from ..forms import CommentForm, SubCommentForm
-from ..models import FrontUser
+from ..models import FrontUser, Notification
 from exts import db
 
 
@@ -40,6 +40,14 @@ class CommentPutView(Resource):
         comment = Comment(content=content, images=images)
         comment.author = g.user
         comment.article = article
+
+        if article.author_id != g.user.id:
+            notification = Notification(category=4, link_id=comment.id,
+                                        sender_content=comment.content, acceptor_content=article.title)
+            notification.sender = g.user
+            notification.acceptor = article.author
+            db.session.add(notification)
+
         db.session.add(comment)
         db.session.commit()
         article.cache_increase(article_cache, field="comments")
@@ -192,6 +200,13 @@ class SubCommentPutView(Resource):
         sub_comment.acceptor = acceptor
         sub_comment.author = g.user
         sub_comment.comment = comment
+
+        if acceptor_id != g.user.id:
+            notification = Notification(category=8, link_id=comment_id,
+                                        sender_content=content, acceptor_content=comment.content)
+            notification.acceptor = acceptor
+            notification.sender = g.user
+            db.session.add(notification)
 
         db.session.add(sub_comment)
         db.session.commit()

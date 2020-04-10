@@ -1,6 +1,6 @@
 from .cache import like_cache, article_cache, rate_cache, comment_cache
 from .models import Article, Comment
-from front.models import FrontUser, Rate, Like
+from front.models import FrontUser, Rate, Like, Notification
 from exts import db, scheduler
 from functools import wraps
 import json
@@ -59,7 +59,14 @@ def save_likes():
                     like = Like()
                     like.user = user
                     like.article = article
+
+                    notification = Notification(category=1, link_id=article_id,
+                                                sender_content="赞了你的帖子", acceptor_content=article.title)
+                    notification.acceptor = article.author
+                    notification.sender = user
+
                     db.session.add(like)
+                    db.session.add(notification)
                     count += 1
     db.session.commit()
     return count
@@ -85,6 +92,13 @@ def save_rates():
                     rate = Rate()
                     rate.user = user
                     rate.comment = comment
+
+                    notification = Notification(category=2, link_id=comment_id,
+                                                sender_content="赞了你的评论", acceptor_content=comment.content)
+                    notification.acceptor = comment.author
+                    notification.sender = user
+
+                    db.session.add(notification)
                     db.session.add(rate)
                     count += 1
     db.session.commit()

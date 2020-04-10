@@ -53,7 +53,8 @@ class Article(db.Model):
             value = user_likes.get(self.id)
             if not value:
                 return False
-            value = json.loads(value)
+            if isinstance(value, str):
+                value = json.loads(value)
             return value["status"] == 1
         like = self.likes.filter_by(user_id=g.user.id).first()
         return like is not None
@@ -98,8 +99,13 @@ class Comment(db.Model):
         """
         如果被用户点赞了，返回True和rate_id，否则返回False和None
         """
-        if user_rates and user_rates.get(self.id):
-            return True
+        if user_rates:
+            value = user_rates.get(self.id)
+            if not value:
+                return False
+            if isinstance(value, str):
+                value = json.loads(value)
+            return value["status"] == 1
         rate = self.rates.filter_by(user_id=g.user.id).first()
         return rate is not None
 
