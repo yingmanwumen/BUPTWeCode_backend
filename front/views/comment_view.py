@@ -122,7 +122,7 @@ class CommentQueryView(Resource):
             return params_error(message="缺失文章id")
 
         article = Article.query.get(article_id)
-        if not article:
+        if not article or not article.status:
             return source_error(message="文章不存在")
 
         comments = article.comments.filter_by(status=1)

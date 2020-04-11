@@ -83,7 +83,6 @@ class QueryView(Resource):
                 "views": fields.Integer,                # 浏览数
                 "comments": fields.Integer,             # 评论数
                 "liked": fields.Boolean,                # 是否喜欢文章
-                "like_id": fields.String,               # 喜欢id
                 "tags": fields.List(fields.Nested({
                     "tag_id": fields.String,
                     "content": fields.String
