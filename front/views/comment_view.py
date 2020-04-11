@@ -132,10 +132,11 @@ class CommentQueryView(Resource):
         if not offset:
             article.cache_increase(article_cache, field="views")
 
-        return self._generate_response(comments, total)
+        return self.generate_response(comments, total)
 
+    @staticmethod
     @marshal_with(resource_fields)
-    def _generate_response(self, comments, total):
+    def generate_response(comments, total):
         """
         返回评论类响应
         :param comments:
@@ -337,10 +338,34 @@ class RateCommentView(Resource):
         return success()
 
 
+class PointedCommentView(Resource):
+    """
+    返回指定评论信息
+    comment: 评论主体
+    article_id: 评论对应的文章id
+    """
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        comment_id = request.args.get("comment_id")
+        if not comment_id:
+            return params_error(message="缺失评论id")
+        comment = Comment.query.get(comment_id)
+        if not comment or not comment.status:
+            return source_error(message="评论不存在")
+        res = CommentQueryView.generate_response([comment], 1)
+        res["data"]["article_id"] = comment.article_id
+        res["data"]["comment"] = res["data"].pop("comments")[0]
+        res["data"].pop("total")
+        return res
+
+
 api.add_resource(CommentPutView, "/add/", endpoint="front_comment_add")
 api.add_resource(CommentQueryView, "/query/", endpoint="front_comment_query")
 api.add_resource(CommentDeleteView, "/delete/", endpoint="front_comment_delete")
 api.add_resource(RateCommentView, "/rate/", endpoint="front_comment_rate")
+api.add_resource(PointedCommentView, "/pointed/", endpoint="front_comment_pointed")
 
 api.add_resource(SubCommentPutView, "/sub/add/", endpoint="front_sub_comment_add")
 api.add_resource(SubCommentQueryView, "/sub/query/", endpoint="front_sub_comment_query")

@@ -150,7 +150,7 @@ class QueryView(Resource):
 
             total = articles.with_entities(func.count(Article.id)).scalar()
             articles = articles.order_by(Article.created.desc())[offset: offset+limit]
-            return self._generate_response(articles, total)
+            return self.generate_response(articles, total)
 
         # 按照热度进行排序
         elif mode == "hot":
@@ -158,8 +158,9 @@ class QueryView(Resource):
 
         return server_error()
 
+    @staticmethod
     @marshal_with(resource_fields)
-    def _generate_response(self, articles, total):
+    def generate_response(articles, total):
         """
         生成文章列表类型的返回数据
         """
@@ -257,11 +258,32 @@ class LikeArticleView(Resource):
         return success()
 
 
+class PointedView(Resource):
+    """
+    返回指定文章信息
+    article: 文章
+    """
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        article_id = request.args.get("article_id")
+        if not article_id:
+            return params_error(message="缺失文章id")
+        article = Article.query.get(article_id)
+        if not article or not article.status:
+            return source_error(message="文章不存在")
+        res = QueryView.generate_response(total=1, articles=[article])
+        res["data"]["article"] = res["data"].pop("articles")[0]
+        res["data"].pop("total")
+        return res
+
+
 api.add_resource(PutView, "/put/", endpoint="front_article_put")
 api.add_resource(QueryView, "/query/", endpoint="front_article_query")
 api.add_resource(DeleteView, "/delete/", endpoint="front_article_delete")
-# api.add_resource(ViewArticleView, "/view/", endpoint="front_article_view")
 api.add_resource(LikeArticleView, "/like/", endpoint="front_article_like")
+api.add_resource(PointedView, "/pointed/", endpoint="front_article_pointed")
 
 
 @article_bp.before_request
