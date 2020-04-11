@@ -66,13 +66,15 @@ class login_required(object):
         def wrapper(*args, **kwargs):
             try:
                 if not g.login:
+                    if g.message in ("缓存炸了", "数据库炸了"):
+                        return restful.server_error(message=g.message)
                     return restful.token_error(message=g.message)
                 if g.user.has_permission(permission=self.permission):
                     return view(*args, **kwargs)
                 return restful.auth_error(message="您没有权限访问")
             except (ConnectionError, TimeoutError):
-                return restful.source_error(message="缓存炸了")
+                return restful.server_error(message="缓存炸了")
             except OperationalError:
-                return restful.source_error(message="数据库炸了")
+                return restful.server_error(message="数据库炸了")
         return wrapper
 

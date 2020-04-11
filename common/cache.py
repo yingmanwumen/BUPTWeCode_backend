@@ -114,6 +114,12 @@ class MyRedis(object):
         """
         return self.redis.exists(key)
 
+    def hexists(self, name, key):
+        """
+        判断hash是否有某个键
+        """
+        return self.redis.hexists(name, key)
+
     def sorted_add(self, name, mapping):
         """
         在有序集合中添加数据，若已存在则更新顺序
@@ -149,4 +155,5 @@ article_cache = MyRedis(db=1, expire=3600)
 like_cache = MyRedis(db=2, expire=3600)
 comment_cache = MyRedis(db=3, expire=3600)
 rate_cache = MyRedis(db=4, expire=3600)
+notify_cache = MyRedis(db=5, expire=3600)
 cms_cache = MyRedis(db=15, expire=86400)

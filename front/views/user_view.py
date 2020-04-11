@@ -3,9 +3,10 @@ from flask_restful import Resource, Api, fields, marshal_with
 from common.restful import *
 from common.token import generate_token, login_required, Permission
 from common.hooks import hook_front
-from ..forms import WXUserInfoForm, WXLoginForm
+from common.cache import notify_cache
+from ..forms import *
 from sqlalchemy import func
-from ..models import FrontUser, Notification
+from ..models import FrontUser, Notification, Report
 from exts import db
 
 import common.wxapi as wxapi
@@ -249,6 +250,31 @@ class RotationView(Resource):
     method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
+        res = g.user.get_new_notifications_count(notify_cache)
+        return success(dict(new=res))
+
+
+class ReportView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def post(self):
+        form = ReportForm(request.form)
+        if not form.validate():
+            return params_error(message=form.get_error())
+
+        category = form.category.data
+        reason = form.reason.data
+        link_id = form.link_id.data
+
+        report = Report.query.filter_by(link_id=link_id, user_id=g.user.id).first()
+        if report:
+            return deny_error(message="您已经举报过了")
+
+        report = Report(category=category, reason=reason, link_id=link_id)
+        report.user = g.user
+        db.session.add(report)
+        db.session.commit()
         return success()
 
 
@@ -258,6 +284,7 @@ api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
 api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
 api.add_resource(NotifyView, "/notify/", endpoint="front_user_notify")
 api.add_resource(RotationView, "/rotation/", endpoint="front_user_rotation")
+api.add_resource(ReportView, "/report/", endpoint="front_user_report")
 
 
 @user_bp.before_request

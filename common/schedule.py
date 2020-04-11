@@ -1,4 +1,4 @@
-from .cache import like_cache, article_cache, rate_cache, comment_cache
+from .cache import like_cache, article_cache, rate_cache, comment_cache, notify_cache
 from .models import Article, Comment
 from front.models import FrontUser, Rate, Like, Notification
 from exts import db, scheduler
@@ -66,6 +66,7 @@ def save_likes():
                         notification.acceptor = article.author
                         notification.sender = user
                         db.session.add(notification)
+                        article.author.add_new_notification(notify_cache)
 
                     db.session.add(like)
                     count += 1
@@ -100,6 +101,7 @@ def save_rates():
                         notification.acceptor = comment.author
                         notification.sender = user
                         db.session.add(notification)
+                        comment.author.add_new_notification(notify_cache)
 
                     db.session.add(rate)
                     count += 1

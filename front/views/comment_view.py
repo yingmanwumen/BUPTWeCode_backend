@@ -5,7 +5,7 @@ from common.restful import *
 from common.hooks import hook_front
 from common.token import login_required, Permission
 from common.models import Article, Comment, SubComment
-from common.cache import article_cache, rate_cache, comment_cache
+from common.cache import article_cache, rate_cache, comment_cache, notify_cache
 from ..forms import CommentForm, SubCommentForm
 from ..models import FrontUser, Notification
 from exts import db
@@ -49,6 +49,7 @@ class CommentPutView(Resource):
             notification.sender = g.user
             notification.acceptor = article.author
             db.session.add(notification)
+            article.author.add_new_notification(notify_cache)
 
         db.session.add(comment)
         db.session.commit()
@@ -210,6 +211,7 @@ class SubCommentPutView(Resource):
             notification.acceptor = acceptor
             notification.sender = g.user
             db.session.add(notification)
+            acceptor.add_new_notification(notify_cache)
 
         db.session.add(sub_comment)
         db.session.commit()

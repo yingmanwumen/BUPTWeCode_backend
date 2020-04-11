@@ -10,6 +10,12 @@ class FeedBackForm(BaseForm):
     images = FieldList(StringField(validators=[URL(message="图片地址格式不正确")]), max_entries=4)
 
 
+class ReportForm(BaseForm):
+    category = StringField(validators=[InputRequired(message="请填入举报类型")])
+    reason = StringField(validators=[InputRequired(message="请填入举报理由")])
+    link_id = StringField(validators=[InputRequired(message="缺失举报目标")])
+
+
 class TagForm(BaseForm):
     tag_id = StringField()
     content = StringField(validators=[InputRequired(message="缺失tag标题"), Length(min=1, max=10, message="超出tag长度限制")])

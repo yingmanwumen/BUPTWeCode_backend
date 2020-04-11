@@ -1,6 +1,7 @@
 from exts import db
 from cms.models import Permission
 from datetime import datetime
+from sqlalchemy import func
 import shortuuid
 import json
 
@@ -58,6 +59,22 @@ class Notification(db.Model):
     acceptor = db.relationship("FrontUser", backref="notifications", foreign_keys=[acceptor_id])
 
 
+class Report(db.Model):
+    """
+    1.举报用户   0b0001 = 1
+    2.举报帖子   0b0010 = 2
+    3.举报评论   0b0100 = 4
+    4.举报楼中楼  0b1000 = 8
+    """
+    __tablename__ = "reports"
+    id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
+    category = db.Column(db.String(50))
+    reason = db.Column(db.Text)
+    link_id = db.Column(db.String(50))
+
+    user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+
+
 class FrontUser(db.Model):
     __tablename__ = "front_user"
     # __table_args__ = {'mysql_engine': 'InnoDB', 'mysql_charset': 'utf8mb4'}
@@ -78,6 +95,7 @@ class FrontUser(db.Model):
     comments = db.relationship("Comment", backref="author", lazy="dynamic")
     likes = db.relationship("Like", backref="user", lazy="dynamic")
     rates = db.relationship("Rate", backref="user", lazy="dynamic")
+    reports = db.relationship("Report", backref="user", lazy="dynamic")
 
     followed = db.relationship("Follow", foreign_keys=[Follow.follower_id], lazy="dynamic",
                                backref=db.backref("follower", lazy="joined"), cascade="all, delete-orphan")
@@ -199,3 +217,23 @@ class FrontUser(db.Model):
 
     def is_followed(self, user):
         return self.followers.filter_by(follower_id=user.id).first() is not None
+
+    def set_new_notifications_count(self, cache, add=False):
+        notifications = Notification.query.filter_by(acceptor_id=self.id, visited=0)
+        count = notifications.with_entities(func.count(Notification.id)).scalar()
+        if add:
+            count += 1
+        res = dict(new=count)
+        cache.set(self.id, res)
+        return count
+
+    def get_new_notifications_count(self, cache):
+        if not cache.exists(self.id):
+            return self.set_new_notifications_count(cache)
+        return cache.get_pointed(self.id, "new")[0]
+
+    def add_new_notification(self, cache):
+        if not cache.exists(self.id):
+            self.set_new_notifications_count(cache, add=True)
+        else:
+            cache.hincrby(self.id, "new")
