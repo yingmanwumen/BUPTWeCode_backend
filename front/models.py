@@ -218,11 +218,13 @@ class FrontUser(db.Model):
     def is_followed(self, user):
         return self.followers.filter_by(follower_id=user.id).first() is not None
 
-    def set_new_notifications_count(self, cache, add=False):
+    def set_new_notifications_count(self, cache, add=False, sub=False):
         notifications = Notification.query.filter_by(acceptor_id=self.id, visited=0)
         count = notifications.with_entities(func.count(Notification.id)).scalar()
         if add:
             count += 1
+        if sub:
+            count -= 1
         res = dict(new=count)
         cache.set(self.id, res)
         return count
@@ -237,3 +239,9 @@ class FrontUser(db.Model):
             self.set_new_notifications_count(cache, add=True)
         else:
             cache.hincrby(self.id, "new")
+
+    def sub_new_notifications(self, cache):
+        if not cache.exists(self.id):
+            self.set_new_notifications_count(cache, sub=True)
+        else:
+            cache.hincrby(self.id, "new", -1)

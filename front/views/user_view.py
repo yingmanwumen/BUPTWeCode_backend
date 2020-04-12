@@ -199,7 +199,8 @@ class NotifyView(Resource):
                 "sender_content": fields.String,
                 "category": fields.Integer,
                 "acceptor_content": fields.String,
-                "link_id": fields.String
+                "link_id": fields.String,
+                "notify_id": fields.String
             })),
             "new": fields.Integer,
             "total": fields.Integer
@@ -221,17 +222,14 @@ class NotifyView(Resource):
         resp = Data()
         resp.total = total
         resp.notifications = []
-        new = 0
         for notification in notifications:
             data = Data()
             data.visited = notification.visited == 1
             data.sender_content = notification.sender_content
             data.acceptor_content = notification.acceptor_content
             data.link_id = notification.link_id
+            data.notify_id = notification.id
             data.category = notification.category
-            if not notification.visited:
-                notification.visited = 1
-                new += 1
 
             data.sender = Data()
             data.sender.username = notification.sender.username
@@ -240,9 +238,34 @@ class NotifyView(Resource):
             data.sender.username = notification.sender.username
 
             resp.notifications.append(data)
-        resp.new = new
+        resp.new = int(g.user.get_new_notifications_count(notify_cache))
         db.session.commit()
         return Response.success(data=resp)
+
+
+class UnNotifyView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        notify_id = request.args.get("notify_id")
+        if not notify_id:
+            return params_error(message="缺失notify_id")
+        notify = Notification.query.get(notify_id)
+
+        if not notify:
+            return source_error(message="消息不存在")
+
+        if notify.acceptor_id != g.user.id:
+            return auth_error(message="您无权进行此操作")
+
+        if notify.visited:
+            return deny_error(message="该消息已经读过了")
+
+        notify.visited = 1
+        g.user.sub_new_notifications(notify_cache)
+        db.session.commit()
+        return success()
 
 
 class RotationView(Resource):
@@ -250,7 +273,7 @@ class RotationView(Resource):
     method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
-        res = g.user.get_new_notifications_count(notify_cache)
+        res = int(g.user.get_new_notifications_count(notify_cache))
         return success(dict(new=res))
 
 
@@ -283,6 +306,7 @@ api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
 api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
 api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
 api.add_resource(NotifyView, "/notify/", endpoint="front_user_notify")
+api.add_resource(UnNotifyView, "/unnotify/", endpoint="front_user_unnotify")
 api.add_resource(RotationView, "/rotation/", endpoint="front_user_rotation")
 api.add_resource(ReportView, "/report/", endpoint="front_user_report")
 
