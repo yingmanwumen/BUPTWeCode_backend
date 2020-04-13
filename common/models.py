@@ -143,15 +143,6 @@ class SubComment(db.Model):
     acceptor = db.relationship("FrontUser", backref="sub_comments_accepted", foreign_keys=[acceptor_id])
 
 
-class FeedBack(db.Model):
-    __tablename__ = "feedbacks"
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    category = db.Column(db.String(50), nullable=False)
-    email = db.Column(db.String(50), nullable=True)
-    content = db.Column(db.Text, nullable=False)
-    images = db.Column(db.Text)
-
-
 class Tag(db.Model):
     __tablename__ = "tags"
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
@@ -172,8 +163,9 @@ class Tag(db.Model):
     @staticmethod
     def query_tags(*raw_tags):
         res = []
-        for raw_tag in raw_tags:
-            tag_content = raw_tag.get("content")
+        # print(raw_tags)
+        for tag_content in set(raw_tags):
+            print(tag_content)
             tag = Tag.query.filter_by(content=tag_content).first()
             if not tag:
                 tag = Tag(content=tag_content)

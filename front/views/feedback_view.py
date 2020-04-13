@@ -5,7 +5,7 @@ from exts import db, mail
 from common.restful import *
 from common.hooks import hook_front
 from common.token import login_required, Permission
-from common.models import FeedBack
+# from common.models import FeedBack
 from ..forms import FeedBackForm
 
 
@@ -46,15 +46,15 @@ class PutView(Resource):
         content = form.content.data
         images = ",".join([image + g.IMAGE_PIC for image in form.images.data])
 
-        feedback = FeedBack(category=category, content=content,
-                            email=email, images=images)
-        db.session.add(feedback)
+        # feedback = FeedBack(category=category, content=content,
+        #                     email=email, images=images)
+        # db.session.add(feedback)
         db.session.commit()
 
         # try:
-        #     send_mail(subject="微码小窝", recipients=[email],
-        #               body="微码小窝已经收到了您的反馈，我们将努力解决这个问题，"
-        #                    "感谢您的使用(=^0^=)")
+        #     feedback.send_mail(subject="微码小窝", recipients=[email],
+        #                        body="微码小窝已经收到了您的反馈，我们将努力解决这个问题，"
+        #                             "感谢您的使用(=^0^=)")
         # except BaseException as e:
         #     if g.debug:
         #         print(e)

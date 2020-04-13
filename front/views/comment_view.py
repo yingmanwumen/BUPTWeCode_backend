@@ -99,6 +99,7 @@ class CommentQueryView(Resource):
                     "username": fields.String,
                     "avatar": fields.String,
                     "gender": fields.Integer,
+                    "signature": fields.String
                 }),
                 "content": fields.String,
                 "images": fields.List(fields.String),
@@ -164,6 +165,7 @@ class CommentQueryView(Resource):
             data.author.username = comment.author.username
             data.author.avatar = comment.author.avatar
             data.author.gender = comment.author.gender
+            data.author.signature = comment.author.signature
 
             if comment.images:
                 data.images = comment.images.split(",")

@@ -6,7 +6,7 @@ from common.hooks import hook_front
 from common.cache import notify_cache
 from ..forms import *
 from sqlalchemy import func
-from ..models import FrontUser, Notification, Report
+from ..models import FrontUser, Notification, Report, FeedBack
 from exts import db
 
 import common.wxapi as wxapi
@@ -23,7 +23,15 @@ class WXLoginView(Resource):
         "code": fields.Integer,  # 状态码
         "message": fields.String,  # 状态描述
         "data": fields.Nested({
-            "token": fields.String
+            "token": fields.String,
+            "new": fields.Boolean,
+            "info": fields.Nested({
+                "avatar": fields.String,
+                "username": fields.String,
+                "signature": fields.String,
+                "gender": fields.Integer,
+                "uid": fields.String
+            })
         })
     }
 
@@ -49,6 +57,7 @@ class WXLoginView(Resource):
 
         # 通过open_id获取用户, 如果用户表中没有说明是新用户, 并且添加这个新用户
         user = FrontUser.query.filter_by(open_id=open_id).first()
+        new_user = user is None
         if not user:
             user = FrontUser(open_id=open_id)
             db.session.add(user)
@@ -70,12 +79,19 @@ class WXLoginView(Resource):
             return server_error(message="缓存过程中发生错误")
 
         # 返回token值
-        return self._generate_response(token)
+        return self._generate_response(token, user, new_user)
 
     @marshal_with(resource_fields)
-    def _generate_response(self, token):
+    def _generate_response(self, token, user, new_user):
         resp = Data()
         resp.token = token
+        resp.new = new_user
+        resp.info = Data()
+        resp.info.avatar = user.avatar
+        resp.info.username = user.username
+        resp.info.signature = user.signature
+        resp.info.gender = user.gender
+        resp.info.uid = user.id
         return Response.success(data=resp)
 
 
@@ -131,7 +147,7 @@ class WXUserInfoView(Resource):
 
         username = form.nickName.data
         avatar = form.avatarUrl.data
-        gender = form.gender.data
+        gender = form.gender.data % 2   # 不设置性别默认女性
 
         # 通过新的解密数据, 更新用户信息
         user = g.user
@@ -140,10 +156,10 @@ class WXUserInfoView(Resource):
         user.gender = gender
         db.session.commit()
 
-        return self._generate_response(user)
+        return self.generate_response(user)
 
     @marshal_with(resource_fields)
-    def _generate_response(self, user):
+    def generate_response(self, user):
         resp = Data()
         resp.avatar = user.avatar
         resp.username = user.username
@@ -151,6 +167,33 @@ class WXUserInfoView(Resource):
         resp.gender = user.gender
         resp.uid = user.id
         return Response.success(data=resp)
+
+
+class ProfileView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def post(self):
+        """
+        修改用户信息
+        """
+        form = UserDataForm(request.form)
+        if not form.validate():
+            return params_error(message=form.get_error())
+
+        username = form.username.data
+        signature = form.signature.data
+        gender = form.gender.data
+        avatar = form.avatar.data.split("?imageView2")[0]
+
+        g.user.username = username
+        g.user.signature = signature
+        # 对用户头像做预处理
+        g.user.avatar = avatar + g.IMAGE_ICON
+        g.user.gender = gender
+
+        db.session.commit()
+        return success()
 
 
 class FollowView(Resource):
@@ -301,14 +344,56 @@ class ReportView(Resource):
         return success()
 
 
+class FeedBackView(Resource):
+    """
+    前台接收反馈视图函数。
+    post请求
+    """
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def post(self):
+        """
+        :category   反馈类型
+        :email      反馈者邮箱
+        :content    反馈正文
+        :images     图像，小于等于4张
+        """
+        form = FeedBackForm.from_json(request.json)
+        if not form.validate():
+            return params_error(message=form.get_error())
+        category = form.category.data
+        email = form.email.data
+        content = form.content.data
+        images = ",".join([image + g.IMAGE_PIC for image in form.images.data])
+
+        feedback = FeedBack(category=category, content=content,
+                            email=email, images=images)
+        db.session.add(feedback)
+        db.session.commit()
+
+        try:
+            feedback.send_mail(subject="微码小窝", recipients=[email],
+                               body="微码小窝已经收到了您的反馈，我们将努力解决这个问题，"
+                                    "感谢您的使用(=^0^=)")
+        except BaseException as e:
+            if g.debug:
+                print(e)
+            return server_error(message="在发送邮件或保存数据的过程中出现了错误，请您稍后重试")
+
+        return success()
+
+
 api.add_resource(WXLoginView, "/login/", endpoint="front_user_login_vx")
 api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
-api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
-api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
+api.add_resource(ProfileView, "/profile/", endpoint="front_user_profile")
+# api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
+# api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
 api.add_resource(NotifyView, "/notify/", endpoint="front_user_notify")
 api.add_resource(UnNotifyView, "/unnotify/", endpoint="front_user_unnotify")
 api.add_resource(RotationView, "/rotation/", endpoint="front_user_rotation")
 api.add_resource(ReportView, "/report/", endpoint="front_user_report")
+api.add_resource(FeedBackView, "/feedback/", endpoint="front_user_feedback")
 
 
 @user_bp.before_request

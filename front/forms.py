@@ -15,23 +15,18 @@ class ReportForm(BaseForm):
     reason = StringField(validators=[InputRequired(message="请填入举报理由")])
     link_id = StringField(validators=[InputRequired(message="缺失举报目标")])
 
-
-class TagForm(BaseForm):
-    tag_id = StringField()
-    content = StringField(validators=[InputRequired(message="缺失tag标题"), Length(min=1, max=10, message="超出tag长度限制")])
-
-
 class ArticleForm(BaseForm):
     board_id = IntegerField(validators=[InputRequired(message="缺失文章所属板块")])
     title = StringField(validators=[InputRequired(message="缺失文章标题"), Length(min=1, max=20, message="标题长度错误")])
     content = StringField(validators=[InputRequired(message="缺失文章内容"), Length(max=500, message="正文长度最多为1000")])
     images = FieldList(StringField(validators=[URL(message="图片格式不正确")]), max_entries=4)
-    tags = FieldList(FormField(TagForm), max_entries=4)
+    tags = FieldList(StringField(validators=[InputRequired(message="缺失tag标题"),
+                                             Length(min=1, max=10, message="超出tag长度限制")]), max_entries=4)
 
 
 class CommentForm(BaseForm):
     article_id = StringField(validators=[InputRequired(message="缺失文章id")])
-    content = StringField(validators=[InputRequired(message="评论不能为空"), Length(max=500, message="评论字数不能超过500")])
+    content = StringField(validators=[Length(max=500, message="评论字数不能超过500")])
     images = FieldList(StringField(validators=[URL(message="图片格式不正确")]), max_entries=4)
 
 
@@ -41,8 +36,11 @@ class SubCommentForm(BaseForm):
     content = StringField(validators=[InputRequired(message="缺失回复内容")])
 
 
-class WXLoginForm(BaseForm):
-    code = StringField(validators=[InputRequired(message="请输入微信申请到的code值")])
+class UserDataForm(BaseForm):
+    username = StringField(validators=[InputRequired(message="请输入用户昵称"), Length(max=10)])
+    gender = IntegerField(validators=[InputRequired(message="请输入性别"), NumberRange(min=0, max=2, message="性别错误")])
+    avatar = StringField(validators=[InputRequired(message="请输入头像url"), URL(message="请输入正确格式的头像url")])
+    signature = StringField(validators=[InputRequired(message="请输入签名"), Length(max=50)])
 
 
 class WXUserInfoForm(BaseForm):

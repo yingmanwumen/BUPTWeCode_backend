@@ -1,4 +1,5 @@
-from exts import db
+from exts import db, mail
+from flask_mail import Message
 from cms.models import Permission
 from datetime import datetime
 from sqlalchemy import func
@@ -73,6 +74,24 @@ class Report(db.Model):
     link_id = db.Column(db.String(50))
 
     user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+
+
+class FeedBack(db.Model):
+    __tablename__ = "feedbacks"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    category = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(50), nullable=True)
+    content = db.Column(db.Text, nullable=False)
+    images = db.Column(db.Text)
+
+    def send_mail(self, subject, recipients, body):
+        """
+        发送邮件
+        """
+        if not isinstance(recipients, list):
+            recipients = list(recipients)
+        message = Message(subject=subject, recipients=recipients, body=body)
+        mail.send(message)
 
 
 class FrontUser(db.Model):
