@@ -180,7 +180,7 @@ class QueryView(Resource):
             # print(article_properties)
             data.likes = article_properties.get("likes", -1)
             data.views = article_properties.get("views", -1)
-            data.comments = article_properties.get("views", -1)
+            data.comments = article_properties.get("comments", -1)
 
             data.liked = article.is_liked(user_likes)
 
