@@ -99,14 +99,16 @@ class MyRedis(object):
             res = [js.loads(s) for s in res]
         return res
 
-    def hincrby(self, name, key, amount=1):
+    def hincrby(self, name, key, amount=1, permanent=False):
         """
         将键为name的散列表中映射的值增加amount
         name：键名
         key：映射键名
         amount：增长量
         """
-        return self.redis.hincrby(name, key, amount)
+        res = self.redis.hincrby(name, key, amount)
+        self.expire_key(name, permanent)
+        return res
 
     def exists(self, key):
         """

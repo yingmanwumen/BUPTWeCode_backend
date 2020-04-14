@@ -178,9 +178,9 @@ class QueryView(Resource):
 
             article_properties = article.get_property_cache(article_cache)
             # print(article_properties)
-            data.likes = article_properties["likes"]
-            data.views = article_properties["views"]
-            data.comments = article_properties["comments"]
+            data.likes = article_properties.get("likes", -1)
+            data.views = article_properties.get("views", -1)
+            data.comments = article_properties.get("views", -1)
 
             data.liked = article.is_liked(user_likes)
 
@@ -229,9 +229,6 @@ class DeleteView(Resource):
 
         author = g.user
         if author.has_permission(permission=Permission.POSTER, model=article):
-            # 删除操作：先将缓存中的数据移除，再将数据库中status置为0
-            # CacheArticle.del_entry(article)
-            # CacheArticle.del_score(article)
             article.status = 0
         else:
             return auth_error(message="对不起，您不是文章作者，无权删除该文章")
