@@ -49,7 +49,7 @@ class CommentPutView(Resource):
             notification.sender = g.user
             notification.acceptor = article.author
             db.session.add(notification)
-            article.author.add_new_notification(notify_cache)
+            article.author.notification_increase(notify_cache)
 
         db.session.add(comment)
         db.session.commit()
@@ -213,7 +213,7 @@ class SubCommentPutView(Resource):
             notification.acceptor = acceptor
             notification.sender = g.user
             db.session.add(notification)
-            acceptor.add_new_notification(notify_cache)
+            acceptor.notification_increase(notify_cache)
 
         db.session.add(sub_comment)
         db.session.commit()

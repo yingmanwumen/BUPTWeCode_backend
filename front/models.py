@@ -160,7 +160,7 @@ class FrontUser(db.Model):
         如果是对文章操作，attr的值应该为likes
         如果是对评论操作，attr的值应该为rates
         """
-        user_data = cache.get(self.id)
+        user_data = cache.get(self.id, json=True)
         if not user_data:
             user_data = self.set_all_appreciation(cache, attr)
         return user_data
@@ -177,7 +177,8 @@ class FrontUser(db.Model):
                     foreign_id = getattr(attr_item, foreign_key)    # article_id = item.article_id
                     attr_value = {
                         "id": attr_item.id,                         # attr_value["id"] = item.id
-                        "status": 1
+                        "status": 1,
+                        "created": attr_item.created.timestamp()
                     }
                     user_data[foreign_id] = attr_value              # user_data["article_id"] = item_value
                     attr_value = json.dumps(attr_value)             # json.loads
@@ -197,15 +198,19 @@ class FrontUser(db.Model):
         # 从缓存中获取用户对某一文章/评论的点赞情况
         attr_value = cache.get_pointed(self.id, attr_id, json=True)[0]
 
+        # 获取现在的时间
+        cur_timestamp = int(datetime.now().timestamp())
+
         # 如果获取不到，说明这是一个新的点赞请求，用户以前没有对该文章/评论点过赞，于是新建一个赞
         if not attr_value:
             attr_value = {
                 "id": shortuuid.uuid(),
-                "status": 0
+                "status": 0,
             }
 
         # 将点赞情况中的status置为其反面, 并将其储存进缓存中
         attr_value["status"] = 1 - attr_value["status"]
+        attr_value["created"] = cur_timestamp
         cache.set_pointed(self.id, attr_id, attr_value, json=True)
 
         # 更新子缓存数据
@@ -216,7 +221,8 @@ class FrontUser(db.Model):
         new_attr_value = {
             "id": attr_id,
             "user_id": self.id,
-            "status": attr_value["status"]
+            "status": attr_value["status"],
+            "created": cur_timestamp
         }
         cache.set_pointed(name="queue", key=attr_value["id"], value=new_attr_value, json=True)
 
@@ -237,13 +243,9 @@ class FrontUser(db.Model):
     def is_followed(self, user):
         return self.followers.filter_by(follower_id=user.id).first() is not None
 
-    def set_new_notifications_count(self, cache, add=False, sub=False):
+    def set_new_notifications_count(self, cache):
         notifications = Notification.query.filter_by(acceptor_id=self.id, visited=0)
         count = notifications.with_entities(func.count(Notification.id)).scalar()
-        if add:
-            count += 1
-        if sub:
-            count -= 1
         res = dict(new=count)
         cache.set(self.id, res)
         return count
@@ -253,14 +255,8 @@ class FrontUser(db.Model):
             return self.set_new_notifications_count(cache)
         return cache.get_pointed(self.id, "new")[0]
 
-    def add_new_notification(self, cache):
+    def notification_increase(self, cache, amount=1):
         if not cache.exists(self.id):
-            self.set_new_notifications_count(cache, add=True)
+            self.set_new_notifications_count(cache)
         else:
-            cache.hincrby(self.id, "new")
-
-    def sub_new_notifications(self, cache):
-        if not cache.exists(self.id):
-            self.set_new_notifications_count(cache, sub=True)
-        else:
-            cache.hincrby(self.id, "new", -1)
+            cache.hincrby(self.id, "new", amount)

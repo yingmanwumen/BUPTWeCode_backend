@@ -42,7 +42,8 @@ class MyRedis(object):
     def get(self, name, json=False):
         res = self.redis.hgetall(name)
         if json:
-            res = js.loads(res)
+            for key, value in res.items():
+                res[key] = js.loads(value)
         return res
 
     def get_pointed(self, name, *args, json=False):
@@ -159,3 +160,11 @@ comment_cache = MyRedis(db=3, expire=3600)
 rate_cache = MyRedis(db=4, expire=3600)
 notify_cache = MyRedis(db=5, expire=3600)
 cms_cache = MyRedis(db=15, expire=86400)
+
+
+if __name__ == '__main__':
+    cache = article_cache
+    for key in cache.redis.keys():
+        print(key)
+        print(cache.redis.ttl(key))
+        print(cache.redis.hgetall(key))

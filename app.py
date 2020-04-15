@@ -7,6 +7,7 @@ from cms import cms_bp
 from front.views import BPS
 import config
 import wtforms_json
+import flask_whooshalchemyplus
 
 app = Flask(__name__)
 app.config.from_object(config)
@@ -19,6 +20,7 @@ app.register_blueprint(cms_bp)
 
 db.init_app(app)
 mail.init_app(app)
+flask_whooshalchemyplus.init_app(app)
 scheduler.init_app(app)
 scheduler.start()
 

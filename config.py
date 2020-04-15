@@ -1,5 +1,5 @@
 import os
-from conf import USERNAME, PWD, IPHOST, PORT, DBNAME
+from conf import *
 
 # DEBUG = True
 

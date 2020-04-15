@@ -3,10 +3,12 @@ from flask_restful import Resource, Api, fields, marshal_with
 from common.restful import *
 from common.token import generate_token, login_required, Permission
 from common.hooks import hook_front
-from common.cache import notify_cache
+from common.cache import notify_cache, like_cache
+from common.models import Article
 from ..forms import *
 from sqlalchemy import func
 from ..models import FrontUser, Notification, Report, FeedBack
+from .article_view import QueryView as ArticleQueryView
 from exts import db
 
 import common.wxapi as wxapi
@@ -226,6 +228,34 @@ class UnFollowView(Resource):
         return success()
 
 
+class LikesView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+        user_likes = g.user.get_all_appreciation(cache=like_cache, attr="likes")
+        article_ids = [article_id for article_id in user_likes.keys() if user_likes[article_id]["status"]]
+        articles = Article.query.filter(Article.id.in_(user_likes.keys()))
+        total = articles.filter_by(status=1).with_entities(func.count(Article.id)).scalar()
+        articles = articles.order_by(Article.created.desc())[offset: offset + limit]
+        return ArticleQueryView.generate_response(articles, total)
+
+
+class PostsView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+        articles = g.user.articles.filter_by(status=1)
+        total = articles.with_entities(func.count(Article.id)).scalar()
+        articles = articles.order_by(Article.created.desc())[offset: offset + limit]
+        return ArticleQueryView.generate_response(articles, total)
+
+
 class NotifyView(Resource):
     resource_fields = {
         "code": fields.Integer,
@@ -306,7 +336,7 @@ class UnNotifyView(Resource):
             return deny_error(message="该消息已经读过了")
 
         notify.visited = 1
-        g.user.sub_new_notifications(notify_cache)
+        g.user.notification_increase(notify_cache, amount=-1)
         db.session.commit()
         return success()
 
@@ -377,8 +407,7 @@ class FeedBackView(Resource):
                                body="微码小窝已经收到了您的反馈，我们将努力解决这个问题，"
                                     "感谢您的使用(=^0^=)")
         except BaseException as e:
-            if g.debug:
-                print(e)
+            print(e)
             return server_error(message="在发送邮件或保存数据的过程中出现了错误，请您稍后重试")
 
         return success()
@@ -387,6 +416,8 @@ class FeedBackView(Resource):
 api.add_resource(WXLoginView, "/login/", endpoint="front_user_login_vx")
 api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
 api.add_resource(ProfileView, "/profile/", endpoint="front_user_profile")
+api.add_resource(LikesView, "/likes/", endpoint="front_user_likes")
+api.add_resource(PostsView, "/posts/", endpoint="front_user_posts")
 # api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
 # api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
 api.add_resource(NotifyView, "/notify/", endpoint="front_user_notify")

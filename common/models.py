@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import g
 from sqlalchemy import func
 from front.models import Like, Rate
+from jieba.analyse.analyzer import ChineseAnalyzer
 import shortuuid
 import json
 
@@ -13,7 +14,7 @@ article_tag_table = db.Table("article_tag_table",
 
 
 class Board(db.Model):
-    __tablename__ = 'boards'
+    __tablename__ = "boards"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(20), nullable=False)
     desc = db.Column(db.Text, nullable=False)
@@ -25,7 +26,10 @@ class Board(db.Model):
 
 
 class Article(db.Model):
-    __tablename__ = 'articles'
+    __tablename__ = "articles"
+    __searchalbe__ = ["title", "content"]
+    __analyzer__ = ChineseAnalyzer()
+
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
     title = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text, nullable=False)

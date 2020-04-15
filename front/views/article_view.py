@@ -47,9 +47,8 @@ class PutView(Resource):
         title = form.title.data
         content = form.content.data
         tags = Tag.query_tags(*form.tags.data)
-        # print(form.tags.data)
-        # return success()
         images = ",".join([image + g.IMAGE_PIC for image in form.images.data])
+
         article = Article(title=title, content=content,
                           images=images, board_id=board_id,
                           author_id=g.user.id)
@@ -141,12 +140,12 @@ class QueryView(Resource):
                 # articles = Article.query.filter_by(status=status)
                 articles = Article.query.filter_by(status=1)
 
-            # 作者id存在->按作者id查询
-            if author_id:
-                author = FrontUser.query.get(author_id)
-                if not author:
-                    return source_error(message="用户不存在")
-                articles = articles.filter_by(author_id=author_id)
+            # # 作者id存在->按作者id查询
+            # if author_id:
+            #     author = FrontUser.query.get(author_id)
+            #     if not author:
+            #         return source_error(message="用户不存在")
+            #     articles = articles.filter_by(author_id=author_id)
 
             total = articles.with_entities(func.count(Article.id)).scalar()
             articles = articles.order_by(Article.created.desc())[offset: offset+limit]
