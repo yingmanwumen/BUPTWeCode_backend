@@ -27,7 +27,7 @@ class Board(db.Model):
 
 class Article(db.Model):
     __tablename__ = "articles"
-    __searchalbe__ = ["title", "content"]
+    __searchable__ = ["title", "content"]
     __analyzer__ = ChineseAnalyzer()
 
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
@@ -36,6 +36,7 @@ class Article(db.Model):
     images = db.Column(db.Text, default="")
     created = db.Column(db.DateTime, default=datetime.now)
     status = db.Column(db.Integer, default=1)
+    quality = db.Column(db.Integer, default=0)
     views = db.Column(db.Integer, default=0)
 
     board_id = db.Column(db.Integer, db.ForeignKey("boards.id"))

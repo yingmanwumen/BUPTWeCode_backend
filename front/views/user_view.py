@@ -32,8 +32,9 @@ class WXLoginView(Resource):
                 "username": fields.String,
                 "signature": fields.String,
                 "gender": fields.Integer,
-                "uid": fields.String
-            })
+                "uid": fields.String,
+                "permission": fields.Integer
+            }),
         })
     }
 
@@ -89,6 +90,7 @@ class WXLoginView(Resource):
         resp.token = token
         resp.new = new_user
         resp.info = Data()
+        resp.info.permission = user.permission
         resp.info.avatar = user.avatar
         resp.info.username = user.username
         resp.info.signature = user.signature
@@ -233,13 +235,11 @@ class LikesView(Resource):
     method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
-        offset = request.args.get("offset", 0, type=int)
-        limit = request.args.get("limit", 10, type=int)
         user_likes = g.user.get_all_appreciation(cache=like_cache, attr="likes")
         article_ids = [article_id for article_id in user_likes.keys() if user_likes[article_id]["status"]]
-        articles = Article.query.filter(Article.id.in_(user_likes.keys()))
-        total = articles.filter_by(status=1).with_entities(func.count(Article.id)).scalar()
-        articles = articles.order_by(Article.created.desc())[offset: offset + limit]
+        articles = Article.query.filter(Article.id.in_(article_ids), Article.status == 1)
+        total = articles.with_entities(func.count(Article.id)).scalar()
+        articles = articles.order_by(Article.created.desc())
         return ArticleQueryView.generate_response(articles, total)
 
 

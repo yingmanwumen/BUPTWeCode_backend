@@ -10,8 +10,8 @@ class Permission(object):
     VISITOR        = 0b00000001  # 访问者权限
     COMMENTER      = 0b00000010  # 管理评论权限
     POSTER         = 0b00000100  # 管理帖子权限
-    FRONTUSER      = 0b00001000  # 管理板块权限
-    BOADER         = 0b00010000  # 管理前台用户的角色
+    FRONTUSER      = 0b00001000  # 管理前台用户权限
+    BOADER         = 0b00010000  # 管理板块的角色
     CMSUSER        = 0b00100000  # 管理后台用户的角色
     ROOTER         = 0b01000000  # 超级管理员
 

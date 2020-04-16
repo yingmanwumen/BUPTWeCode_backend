@@ -7,8 +7,8 @@ from common.cache import like_cache, article_cache
 from common.hooks import hook_front
 from exts import db
 from common.restful import *
-from ..models import FrontUser
 from ..forms import ArticleForm
+import flask_whooshalchemyplus
 
 
 article_bp = Blueprint("article", __name__, url_prefix="/api/article")
@@ -59,6 +59,8 @@ class PutView(Resource):
         db.session.add(article)
         db.session.commit()
 
+        flask_whooshalchemyplus.index_one_model(Article)
+
         return success()
 
 
@@ -82,6 +84,7 @@ class QueryView(Resource):
                 "views": fields.Integer,                # 浏览数
                 "comments": fields.Integer,             # 评论数
                 "liked": fields.Boolean,                # 是否喜欢文章
+                "quality": fields.Integer,              # 是否精品
                 "tags": fields.List(fields.Nested({
                     "tag_id": fields.String,
                     "content": fields.String
@@ -112,17 +115,13 @@ class QueryView(Resource):
         mode=new      按时间排序
         mode=hot      按热度排序
         :board_id   板块id，当其为0时不进行板块区分
-        :author_id  作者id，可不传输，有值时按该值进行查询，无值时忽略该条件
-        :offset     偏移量
-        :limit      查询数量
-        # :status     文章状态。默认为1
+        :quality    为1时只查询精品帖子
         """
         mode = request.args.get("mode")
         board_id = request.args.get("board_id", 0, type=int)
-        author_id = request.args.get("author_id", None)
         offset = request.args.get("offset", 0, type=int)
         limit = request.args.get("limit", 20, type=int)
-        # status = request.args.get("status", 1, type=int)
+        quality = request.args.get("quality", 0, type=int)
 
         if mode not in ("hot", "new"):
             return params_error(message="不存在的排序方式")
@@ -133,19 +132,13 @@ class QueryView(Resource):
                 board = Board.query.get(board_id)
                 if not board:
                     return source_error(message="板块不存在")
-                # articles = Article.query.filter_by(board_id=board_id, status=status)
                 articles = Article.query.filter_by(board_id=board_id, status=1)
             # 板块id等于0->查询所有的帖子
             else:
-                # articles = Article.query.filter_by(status=status)
                 articles = Article.query.filter_by(status=1)
 
-            # # 作者id存在->按作者id查询
-            # if author_id:
-            #     author = FrontUser.query.get(author_id)
-            #     if not author:
-            #         return source_error(message="用户不存在")
-            #     articles = articles.filter_by(author_id=author_id)
+            if quality:
+                articles = articles.filter_by(quality=1)
 
             total = articles.with_entities(func.count(Article.id)).scalar()
             articles = articles.order_by(Article.created.desc())[offset: offset+limit]
@@ -167,16 +160,15 @@ class QueryView(Resource):
         resp.articles = []
         resp.total = total
         user_likes = g.user.get_all_appreciation(cache=like_cache, attr="likes")
-        # print(user_likes)
         for article in articles:
             data = Data()
             data.article_id = article.id
             data.title = article.title
             data.created = article.created.timestamp()
             data.content = article.content
+            data.quality = article.quality
 
             article_properties = article.get_property_cache(article_cache)
-            # print(article_properties)
             data.likes = article_properties.get("likes", -1)
             data.views = article_properties.get("views", -1)
             data.comments = article_properties.get("comments", -1)
@@ -226,11 +218,13 @@ class DeleteView(Resource):
         if not article or not article.status:
             return source_error(message="文章已经被删除或不存在")
 
-        author = g.user
-        if author.has_permission(permission=Permission.POSTER, model=article):
-            article.status = 0
-        else:
-            return auth_error(message="对不起，您不是文章作者，无权删除该文章")
+        if not g.user.has_permission(permission=Permission.POSTER, model=article):
+            return auth_error(message="您无权删除该文章")
+
+        if article.quality and not g.user.has_permission(Permission.FRONTUSER):
+            return auth_error(message="普通用户无法删除精品贴")
+
+        article.status = 0
 
         db.session.commit()
         return success()
@@ -275,11 +269,54 @@ class PointedView(Resource):
         return res
 
 
+class SearchView(Resource):
+    """
+    搜索文章内容
+    """
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        keyword = request.args.get("keyword", "")
+        if not keyword:
+            return params_error(message="搜索内容不能为空")
+
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+
+        articles = Article.query.whoosh_search(keyword, like=True, case_sensitive=True, or_=True).filter_by(status=1)
+        total = articles.with_entities(func.count(Article.id)).scalar()
+        articles = articles.order_by(Article.created.desc())[offset: offset + limit]
+        return QueryView.generate_response(articles, total)
+
+
+class QualityView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        if not g.user.has_permission(Permission.FRONTUSER):
+            return auth_error(message="您没有这个权限")
+
+        article_id = request.args.get("article_id")
+        if not article_id:
+            return params_error(message="缺失文章id")
+
+        article = Article.query.get(article_id)
+        if not article or not article.status:
+            return source_error(message="文章不存在")
+
+        article.quality = 1 - article.quality
+        db.session.commit()
+        return success()
+
+
 api.add_resource(PutView, "/put/", endpoint="front_article_put")
 api.add_resource(QueryView, "/query/", endpoint="front_article_query")
 api.add_resource(DeleteView, "/delete/", endpoint="front_article_delete")
 api.add_resource(LikeArticleView, "/like/", endpoint="front_article_like")
 api.add_resource(PointedView, "/pointed/", endpoint="front_article_pointed")
+api.add_resource(SearchView, "/search/", endpoint="front_article_search")
+api.add_resource(QualityView, "/quality/", endpoint="front_article_quality")
 
 
 @article_bp.before_request

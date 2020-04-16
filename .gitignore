@@ -5,6 +5,7 @@ venv
 
 conf.py
 migrations
+whoosh_index
 
 */.DS_Store
 .DS_Store
