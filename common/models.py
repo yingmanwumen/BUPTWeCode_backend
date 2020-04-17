@@ -89,7 +89,7 @@ class Article(db.Model):
 class Comment(db.Model):
     __tablename__ = "comments"
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
-    content = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text)
     images = db.Column(db.Text)
     created = db.Column(db.DateTime, default=datetime.now)
     status = db.Column(db.Integer, default=1)

@@ -15,6 +15,7 @@ class ReportForm(BaseForm):
     reason = StringField(validators=[InputRequired(message="请填入举报理由")])
     link_id = StringField(validators=[InputRequired(message="缺失举报目标")])
 
+
 class ArticleForm(BaseForm):
     board_id = IntegerField(validators=[InputRequired(message="缺失文章所属板块")])
     title = StringField(validators=[InputRequired(message="缺失文章标题"), Length(min=1, max=20, message="标题长度错误")])

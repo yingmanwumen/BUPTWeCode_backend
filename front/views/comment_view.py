@@ -30,6 +30,8 @@ class CommentPutView(Resource):
         form = CommentForm.from_json(request.json)
         if not form.validate():
             return params_error(message=form.get_error())
+        if not form.content.data and not form.images.data:
+            return params_error(message="评论至少包含文字内容或者图片")
         article_id = form.article_id.data
         article = Article.query.get(article_id)
         if not article or not article.status:
@@ -44,8 +46,9 @@ class CommentPutView(Resource):
         comment.article = article
 
         if article.author_id != g.user.id:
+            content = comment.content + "[图片]"*comment.images.length
             notification = Notification(category=4, link_id=comment_id,
-                                        sender_content=comment.content, acceptor_content=article.title)
+                                        sender_content=content, acceptor_content=article.title)
             notification.sender = g.user
             notification.acceptor = article.author
             db.session.add(notification)
@@ -151,7 +154,7 @@ class CommentQueryView(Resource):
         user_rates = g.user.get_all_appreciation(cache=rate_cache, attr="rates")
         for comment in comments:
             data = Data()
-            data.content = comment.content
+            data.content = comment.content or ""
             data.created = comment.created.timestamp()
             data.comment_id = comment.id
             data.rated = comment.is_rated(user_rates)
