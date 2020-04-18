@@ -15,12 +15,6 @@ IMAGE_PIC = "?imageView2/0/q/75"
 
 SCHEDULER_API_ENABLED = True
 JOBS = [
-    # {
-    #     "id": "test_job_id",
-    #     "func": "common.schedule:test_job",
-    #     "trigger": "interval",
-    #     "seconds": 10
-    # },
     {
         "id": "save_views",
         "func": "common.schedule:save_views",
@@ -39,4 +33,10 @@ JOBS = [
         "trigger": "cron",
         "minute": "10,25,40,55"
     },
+    {
+        "id": "calculate_score",
+        "func": "common.schedule:calculator_article_score",
+        "trigger": "cron",
+        "hour": "4,16"
+    }
 ]

@@ -6,6 +6,7 @@ from front.models import Like, Rate
 from jieba.analyse.analyzer import ChineseAnalyzer
 import shortuuid
 import json
+import math
 
 
 article_tag_table = db.Table("article_tag_table",
@@ -84,6 +85,20 @@ class Article(db.Model):
         cache.hincrby(self.id, field, amount)
         if field == "views":
             cache.hincrby("views", self.id)
+
+    def calculate_score(self, date):
+        """
+        计算文章的score
+        :param date:
+        :return:
+        """
+        td = date - self.created
+        epoch_hours = td.days * 24 + td.seconds / 3600 + 1     # 文章发布的小时数
+        views = self.views
+        comments = self.comments.filter_by(status=1).with_entities(func.count(Comment.id)).scalar()
+        likes = self.likes.filter_by(status=1).with_entities(func.count(Like.id)).scalar()
+        numerator = math.log(views + 1, math.e) * 4 + comments * likes / 5
+        return round((numerator / epoch_hours) * 100, 7)
 
 
 class Comment(db.Model):
@@ -168,7 +183,6 @@ class Tag(db.Model):
     @staticmethod
     def query_tags(*raw_tags):
         res = []
-        # print(raw_tags)
         for tag_content in set(raw_tags):
             print(tag_content)
             tag = Tag.query.filter_by(content=tag_content).first()

@@ -37,7 +37,7 @@ class CommentPutView(Resource):
         if not article or not article.status:
             return source_error(message="文章不存在")
 
-        content = form.content.data
+        content = form.content.data or ""
         images = ",".join([image + g.IMAGE_PIC for image in form.images.data])
 
         comment_id = shortuuid.uuid()
@@ -46,7 +46,7 @@ class CommentPutView(Resource):
         comment.article = article
 
         if article.author_id != g.user.id:
-            content = comment.content + "[图片]" * len(comment.images)
+            content += "[图片]" * len(comment.images)
             notification = Notification(category=4, link_id=comment_id,
                                         sender_content=content, acceptor_content=article.title)
             notification.sender = g.user

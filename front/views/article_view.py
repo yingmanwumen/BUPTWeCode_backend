@@ -118,15 +118,12 @@ class QueryView(Resource):
         :quality    为1时只查询精品帖子
         """
         mode = request.args.get("mode")
-        board_id = request.args.get("board_id", 0, type=int)
-        offset = request.args.get("offset", 0, type=int)
-        limit = request.args.get("limit", 20, type=int)
-        quality = request.args.get("quality", 0, type=int)
 
         if mode not in ("hot", "new"):
             return params_error(message="不存在的排序方式")
 
         if mode == "new":
+            board_id = request.args.get("board_id", 0, type=int)
             # 板块id不等于0->按照板块id进行查询
             if board_id:
                 board = Board.query.get(board_id)
@@ -137,8 +134,12 @@ class QueryView(Resource):
             else:
                 articles = Article.query.filter_by(status=1)
 
+            quality = request.args.get("quality", 0, type=int)
             if quality:
                 articles = articles.filter_by(quality=1)
+
+            offset = request.args.get("offset", 0, type=int)
+            limit = request.args.get("limit", 20, type=int)
 
             total = articles.with_entities(func.count(Article.id)).scalar()
             articles = articles.order_by(Article.created.desc())[offset: offset+limit]
@@ -146,9 +147,12 @@ class QueryView(Resource):
 
         # 按照热度进行排序
         elif mode == "hot":
-            return deny_error(message="该功能正在开发中")
+            article_ids = article_cache.get_pointed("hot", "rank", json=True)[0]
+            articles = Article.query.filter(Article.id.in_(article_ids), Article.status == 1)
+            total = articles.with_entities(func.count(Article.id)).scalar()
+            return self.generate_response(articles, total)
 
-        return server_error()
+        return params_error(message="你到达了世界尽头")
 
     @staticmethod
     @marshal_with(resource_fields)
@@ -310,6 +314,28 @@ class QualityView(Resource):
         return success()
 
 
+class TagQueryView(Resource):
+
+    method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        tag_id = request.args.get("tag_id")
+        if not tag_id:
+            return params_error(message="请输入tag名称")
+
+        tag = Tag.query.get(tag_id)
+        if not tag:
+            return source_error(message="tag不存在")
+
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+
+        articles = [article for article in tag.articles if article.status]
+        total = len(articles)
+        articles = articles[offset: offset + limit]
+        return QueryView.generate_response(articles, total)
+
+
 api.add_resource(PutView, "/put/", endpoint="front_article_put")
 api.add_resource(QueryView, "/query/", endpoint="front_article_query")
 api.add_resource(DeleteView, "/delete/", endpoint="front_article_delete")
@@ -317,6 +343,7 @@ api.add_resource(LikeArticleView, "/like/", endpoint="front_article_like")
 api.add_resource(PointedView, "/pointed/", endpoint="front_article_pointed")
 api.add_resource(SearchView, "/search/", endpoint="front_article_search")
 api.add_resource(QualityView, "/quality/", endpoint="front_article_quality")
+api.add_resource(TagQueryView, "/tag/", endpoint="front_article_tag")
 
 
 @article_bp.before_request

@@ -4,9 +4,10 @@ from front.models import FrontUser, Rate, Like, Notification
 from common.exceptions import *
 from exts import db, scheduler
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import time
+import heapq
 
 
 class logger():
@@ -23,7 +24,7 @@ class logger():
                 with scheduler.app.app_context():
                     count = func(*args, **kwargs)
                 t2 = time.time()
-                print("【{}】执行完毕...总耗时【{:.2f}】s...一共更新了【{}】条数据...".format(self.info, t2 - t1, count))
+                print("【{}】执行完毕...总耗时【{:.3f}】s...一共更新了【{}】条数据...".format(self.info, t2 - t1, count))
                 print("*" * 10)
             except (ConnectionError, TimeoutError):
                 print("缓存炸了")
@@ -115,3 +116,19 @@ def save_rates():
     db.session.commit()
     return count
 
+
+@logger(info="计算热帖排行")
+def calculator_article_score():
+    # 暂时定十五天内的帖子
+    now = datetime.now()
+    t1 = time.time()
+    articles = Article.query.filter(Article.created >= now - timedelta(days=15)).all()
+    score = {article.id: article.calculate_score(now) for article in articles}
+    t2 = time.time()
+    print("搜索数据库耗时: {:.3f}".format(t2 - t1))
+    t1 = time.time()
+    hot_articles = heapq.nlargest(10, score, key=lambda item: score[item])
+    t2 = time.time()
+    print("堆排序耗时: {:.3f}".format(t2 - t1))
+    article_cache.set_pointed("hot", "rank", hot_articles, json=True, permanent=True)
+    return len(score)
