@@ -122,7 +122,7 @@ def calculator_article_score():
     # 暂时定十五天内的帖子
     now = datetime.now()
     t1 = time.time()
-    articles = Article.query.filter(Article.created >= now - timedelta(days=15)).all()
+    articles = Article.query.filter(Article.created >= now - timedelta(days=15), Article.status == 1).all()
     score = {article.id: article.calculate_score(now) for article in articles}
     t2 = time.time()
     print("搜索数据库耗时: {:.3f}".format(t2 - t1))
