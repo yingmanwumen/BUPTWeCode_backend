@@ -46,7 +46,7 @@ class CommentPutView(Resource):
         comment.article = article
 
         if article.author_id != g.user.id:
-            content = comment.content + "[图片]"*comment.images.length
+            content = comment.content + "[图片]" * len(comment.images)
             notification = Notification(category=4, link_id=comment_id,
                                         sender_content=content, acceptor_content=article.title)
             notification.sender = g.user
