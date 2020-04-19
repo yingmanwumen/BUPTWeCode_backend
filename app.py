@@ -3,8 +3,8 @@ from flask_cors import CORS
 
 from exts import db, mail, scheduler
 
-from cms import cms_bp
-from front.views import BPS
+from cms.views import CMS_BPS
+from front.views import FRONT_BPS
 import config
 import wtforms_json
 import flask_whooshalchemyplus
@@ -13,9 +13,8 @@ app = Flask(__name__)
 app.config.from_object(config)
 CORS(app, supports_credentials=True)
 
-for blueprint in BPS:
+for blueprint in CMS_BPS + FRONT_BPS:
     app.register_blueprint(blueprint)
-app.register_blueprint(cms_bp)
 
 
 db.init_app(app)

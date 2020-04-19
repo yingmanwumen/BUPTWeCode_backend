@@ -10,7 +10,7 @@ class LoginForm(BaseForm):
 
 
 class ProfileForm(BaseForm):
-    displayName = StringField(validators=[Length(max=8, min=0, message="最大长度为8")])
+    display_name = StringField(validators=[Length(max=8, min=0, message="最大长度为8")])
     desc = StringField(validators=[Length(max=100, min=0, message="最大长度为100")])
 
 

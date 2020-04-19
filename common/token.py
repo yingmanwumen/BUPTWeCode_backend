@@ -15,7 +15,7 @@ class Permission(object):
     CMSUSER        = 0b00100000  # 管理后台用户的角色
     ROOTER         = 0b01000000  # 超级管理员
 
-    OPERATOR = VISITOR | COMMENTER | POSTER | FRONTUSER                     # 运营角色
+    OPERATOR = VISITOR | COMMENTER | POSTER | FRONTUSER                     # 运营角色   15
     ADMIN = VISITOR | COMMENTER | POSTER | FRONTUSER | BOADER | CMSUSER     # 管理员角色
     ALL_PERMISSION = 0b11111111                                             # 开发者用
 
