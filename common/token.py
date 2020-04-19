@@ -22,7 +22,7 @@ class Permission(object):
 
 def generate_token(uid, permanent=False):
     # 第一个参数为session用的密匙，第二个参数是token的有效期，单位为秒
-    expire_time = 86400
+    expire_time = 86400 * 30
     s = Serializer(SECRET_KEY, expires_in=expire_time)
     token = s.dumps({"uid": uid}).decode("ascii")
     return token

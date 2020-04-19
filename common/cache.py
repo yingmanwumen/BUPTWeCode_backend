@@ -123,37 +123,14 @@ class MyRedis(object):
         """
         return self.redis.hexists(name, key)
 
-    def sorted_add(self, name, mapping):
+    def ttl(self, name):
         """
-        在有序集合中添加数据，若已存在则更新顺序
-        name：键名
-        mapping:将value和score组装成的dict{value: score}
-        返回添加的数据的个数
+        返回某个键的保活时间
         """
-        return self.redis.zadd(name, mapping)
-
-    def sorted_del(self, key, *values):
-        """
-        删除key中的元素value
-        返回删除的元素的个数
-        """
-        return self.redis.zrem(key, *values)
-
-    def sorted_range(self, key, start, end, withscores=False):
-        """
-        返回从start到end的元素（score从大到小）
-        withscores：是否带有score
-        """
-        return self.redis.zrevrange(key, start, end, withscores)
-
-    def sorted_card(self, key):
-        """
-        返回key中的元素个数
-        """
-        return self.redis.zcard(key)
+        return self.redis.ttl(name)
 
 
-front_cache = MyRedis(db=0, expire=86400)
+front_cache = MyRedis(db=0, expire=86400 * 30)
 article_cache = MyRedis(db=1, expire=3600)
 like_cache = MyRedis(db=2, expire=3600)
 comment_cache = MyRedis(db=3, expire=3600)

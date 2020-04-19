@@ -3,7 +3,7 @@ from flask_restful import Resource, Api, fields, marshal_with
 from common.restful import *
 from common.token import generate_token, login_required, Permission
 from common.hooks import hook_front
-from common.cache import notify_cache, like_cache
+from common.cache import notify_cache, like_cache, front_cache
 from common.models import Article
 from ..forms import *
 from sqlalchemy import func
@@ -41,9 +41,7 @@ class WXLoginView(Resource):
     def get(self):
         # 如果当前登陆状态还有效，直接返回token
         if g.login:
-            # data.token = request.headers.get("Z-Token")
-            # return Response.success(data=data)
-            return self._generate_response(token=request.headers.get("Z-Token"))
+            return self._generate_response(token=g.token, user=g.user, new_user=False)
 
         # 如果参数中没有code，返回参数错误
         code = request.args.get("code")
