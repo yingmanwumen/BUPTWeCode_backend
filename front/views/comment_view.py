@@ -211,8 +211,9 @@ class SubCommentPutView(Resource):
         sub_comment.comment = comment
 
         if acceptor_id != g.user.id:
+            acceptor_content = comment.content or "" + "[图片]" * len(comment.images)
             notification = Notification(category=8, link_id=comment_id,
-                                        sender_content=content, acceptor_content=comment.content)
+                                        sender_content=content, acceptor_content=acceptor_content)
             notification.acceptor = acceptor
             notification.sender = g.user
             db.session.add(notification)
