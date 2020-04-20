@@ -5,9 +5,11 @@ from sqlalchemy import func
 from common.restful import *
 from ..forms import BoardForm
 from common.token import login_required, Permission
-from common.models import Board
+from common.models import Board, Article
 from common.hooks import hook_cms
+from common.cache import article_cache
 from front.models import FrontUser
+from ..models import CMSUser
 
 cms_manager_bp = Blueprint("cms_manage", __name__, url_prefix="/cms/manage")
 api = Api(cms_manager_bp)
@@ -49,7 +51,6 @@ class BoardView(Resource):
         offset = request.args.get("offset", 0, type=int)
         limit = request.args.get("limit", 10, type=int)
         status = request.args.get("status", 1, type=int)
-        data = Data()
 
         # status的值用于筛选对应status值的boards，1为可见，0为不可见
         boards = Board.query.filter_by(status=status)
@@ -95,8 +96,9 @@ class BoardView(Resource):
 
         return success()
 
+    @staticmethod
     @marshal_with(resource_fields)
-    def _generate_response(self, boards, total):
+    def _generate_response(boards, total):
         """
         返回一个格式化的board数据对象
         """
@@ -142,22 +144,6 @@ class OperatorView(Resource):
         users = users[offset:offset + limit]
         return self.generate_response(total, users)
 
-    @marshal_with(resource_fields)
-    def generate_response(self, total, users):
-        resp = Data()
-        resp.users = []
-        resp.total = total
-        for user in users:
-            data = Data()
-            data.username = user.username
-            data.signature = user.signature
-            data.avatar = user.avatar
-            data.uid = user.id
-            data.created = user.created.timestamp()
-            data.status = user.status
-            resp.users.append(data)
-        return Response.success(data=resp)
-
     def post(self):
         mode = request.form.get("mode")
         if mode not in ("add", "sub"):
@@ -182,9 +168,215 @@ class OperatorView(Resource):
         db.session.commit()
         return success()
 
+    @staticmethod
+    @marshal_with(resource_fields)
+    def generate_response(total, users):
+        resp = Data()
+        resp.users = []
+        resp.total = total
+        for user in users:
+            data = Data()
+            data.username = user.username
+            data.signature = user.signature
+            data.avatar = user.avatar
+            data.uid = user.id
+            data.created = user.created.timestamp()
+            data.status = user.status
+            resp.users.append(data)
+        return Response.success(data=resp)
+
+
+class FrontUserView(Resource):
+
+    method_decorators = [login_required(Permission.FRONTUSER)]
+
+    def get(self):
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+        status = request.args.get("status", 1, type=int)
+        users = FrontUser.query.filter_by(status=status)
+        total = users.with_entities(func.count(FrontUser.id)).scalar()
+        users = users[offset:offset + limit]
+        return OperatorView.generate_response(total, users)
+
+    def post(self):
+        mode = request.form.get("mode")
+        if mode not in ("add", "sub"):
+            return params_error(message="不存在的模式")
+
+        uid = request.form.get("uid")
+        if not uid:
+            return params_error(message="缺失用户id")
+
+        user = FrontUser.query.get(uid)
+        if not user:
+            return source_error(message="用户不存在")
+
+        is_blocked = user.status == 0
+        if mode == "add":
+            if is_blocked:
+                return params_error(message="该用户已经被封禁了")
+            user.status = 0
+        elif mode == "sub":
+            if not is_blocked:
+                return params_error(message="该用户没有被封禁")
+            user.status = 1
+        db.session.commit()
+        return success()
+
+
+class ArticleView(Resource):
+    resource_fields = {
+        "code": fields.Integer,
+        "message": fields.String,
+        "data": fields.Nested({
+            "articles": fields.List(fields.Nested({
+                "article_id": fields.String,            # 文章id
+                "title": fields.String,                 # 标题
+                "content": fields.String,               # 正文
+                "images": fields.List(fields.String),   # 文章图片
+                "likes": fields.Integer,                # 点赞数
+                "views": fields.Integer,                # 浏览数
+                "comments": fields.Integer,             # 评论数
+                "quality": fields.Integer,              # 是否精品
+                "tags": fields.List(fields.Nested({
+                    "tag_id": fields.String,
+                    "content": fields.String
+                })),                                    # 标签
+                "created": fields.Integer,              # 发表时间
+                "board": fields.Nested({
+                    "board_id": fields.String,
+                    "name": fields.String,
+                    "avatar": fields.String
+                }),
+                "author": fields.Nested({
+                    "author_id": fields.String,
+                    "username": fields.String,
+                    "avatar": fields.String,
+                    "gender": fields.Integer
+                })
+            })),
+            "total": fields.Integer,
+        })
+    }
+
+    method_decorators = [login_required(Permission.POSTER)]
+
+    def get(self):
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 20, type=int)
+        status = request.args.get("status", 1, type=int)
+
+        articles = Article.query.filter_by(status=status)
+        total = articles.with_entities(func.count(Article.id)).scalar()
+        articles = articles.order_by(Article.created.desc())[offset: offset + limit]
+        return self.generate_response(articles, total)
+
+    def post(self):
+        mode = request.form.get("mode")
+        if mode not in ("sub", "add"):
+            return params_error(message="不存在的模式")
+
+        article_id = request.form.get("article_id")
+        if not article_id:
+            return params_error(message="缺失文章id")
+
+        article = Article.query.get(article_id)
+        if not article:
+            return source_error(message="文章不存在")
+
+        is_deleted = article.status == 0
+        if mode == "add":
+            if is_deleted:
+                return params_error(message="文章已经是删除状态的了")
+            article.status = 0
+
+        elif mode == "sub":
+            if not is_deleted:
+                return params_error(message="文章状态正常")
+            article.status = 1
+
+        db.session.commit()
+        return success()
+
+    @staticmethod
+    @marshal_with(resource_fields)
+    def generate_response(articles, total):
+        resp = Data()
+        resp.total = total
+        resp.articles = []
+        for article in articles:
+            data = Data()
+            data.article_id = article.id
+            data.title = article.title
+            data.created = article.created.timestamp()
+            data.content = article.content
+            data.quality = article.quality
+
+            article_properties = article.get_property_cache(article_cache)
+            data.likes = article_properties.get("likes", -1)
+            data.views = article_properties.get("views", -1)
+            data.comments = article_properties.get("comments", -1)
+
+            data.board = Data()
+            data.board.board_id = article.board.id
+            data.board.name = article.board.name
+            data.board.avatar = article.board.avatar
+
+            data.author = Data()
+            data.author.author_id = article.author_id
+            data.author.username = article.author.username
+            data.author.avatar = article.author.avatar
+            data.author.gender = article.author.gender
+
+            if article.images:
+                data.images = article.images.split(",")
+            else:
+                data.images = []
+
+            data.tags = [tag.marshal(Data) for tag in article.tags]
+
+            resp.articles.append(data)
+        return Response.success(data=resp)
+
+
+class CMSUserView(Resource):
+
+    method_decorators = [login_required(Permission.ROOTER)]
+
+    role_mapping = dict(visitor=1, operator=15, admin=63)
+
+    def get(self):
+        offset = request.args.get("offset", 0, type=int)
+        limit = request.args.get("limit", 10, type=int)
+        users = CMSUser.query
+        total = users.with_entities(func.count(CMSUser.id)).scalar()
+        users = users[offset:offset + limit]
+        return OperatorView.generate_response(total, users)
+
+    def post(self):
+        role = request.form.get("role")
+        if role not in ("visitor", "operator", "admin"):
+            return params_error(message="role错误")
+        permission = self.role_mapping.get(role, 1)
+
+        uid = request.form.get("uid")
+        if not uid:
+            return params_error(message="缺失用户id")
+        user = CMSUser.query.get(uid)
+        if not user:
+            return source_error(message="用户不存在")
+
+        user.permission = permission
+        db.session.commit()
+        return success()
+
 
 api.add_resource(BoardView, "/board/", endpoint="board")
 api.add_resource(OperatorView, "/operator/", endpoint="cms_manage_operate")
+api.add_resource(FrontUserView, "/front_user/", endpoint="cms_manage_front_user")
+api.add_resource(ArticleView, "/article/", endpoint="cms_manage_article")
+api.add_resource(CMSUserView, "/cms_user/", endpoint="cms_manage_cms_user")
 
 
 # hooks 用来在上下文中储存cms_user信息，防止重复写token认证语句

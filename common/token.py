@@ -16,7 +16,7 @@ class Permission(object):
     ROOTER         = 0b01000000  # 超级管理员
 
     OPERATOR = VISITOR | COMMENTER | POSTER | FRONTUSER                     # 运营角色   15
-    ADMIN = VISITOR | COMMENTER | POSTER | FRONTUSER | BOADER | CMSUSER     # 管理员角色
+    ADMIN = VISITOR | COMMENTER | POSTER | FRONTUSER | BOADER | CMSUSER     # 管理员角色  15+16+32=63
     ALL_PERMISSION = 0b11111111                                             # 开发者用
 
 

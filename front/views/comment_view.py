@@ -46,7 +46,7 @@ class CommentPutView(Resource):
         comment.article = article
 
         if article.author_id != g.user.id:
-            content += "[图片]" * len(comment.images)
+            content += "[图片]" * len(form.images.data)
             notification = Notification(category=4, link_id=comment_id,
                                         sender_content=content, acceptor_content=article.title)
             notification.sender = g.user
@@ -211,7 +211,8 @@ class SubCommentPutView(Resource):
         sub_comment.comment = comment
 
         if acceptor_id != g.user.id:
-            acceptor_content = comment.content or "" + "[图片]" * len(comment.images)
+            images_length = 0 if not comment.images else len(comment.images.split(","))
+            acceptor_content = comment.content or "" + "[图片]" * images_length
             notification = Notification(category=8, link_id=comment_id,
                                         sender_content=content, acceptor_content=acceptor_content)
             notification.acceptor = acceptor
