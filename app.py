@@ -34,3 +34,6 @@ def index():
 if __name__ == '__main__':
     # 测试分支，不稳定，有bug请联系我
     app.run(host="0.0.0.0")
+    # from common.schedule import calculator_article_score
+    # with app.app_context():
+    #     calculator_article_score()

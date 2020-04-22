@@ -20,3 +20,8 @@ class BoardForm(BaseForm):
     avatar = StringField(validators=[InputRequired(message="请输入板块头像")])
     board_id = IntegerField(validators=[NumberRange(min=0), InputRequired(message="请输入板块id")])
     status = IntegerField(validators=[InputRequired(message="请输入板块status"), NumberRange(min=0, max=1)])
+
+
+class FeedbackForm(BaseForm):
+    feedback_id = StringField(validators=[InputRequired(message="请输入反馈id")])
+    content = StringField(validators=[InputRequired(message="请输入反馈内容")])

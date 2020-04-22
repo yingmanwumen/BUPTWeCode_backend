@@ -400,13 +400,12 @@ class FeedBackView(Resource):
 
         feedback = FeedBack(category=category, content=content,
                             email=email, images=images)
+        feedback.user = g.user
         db.session.add(feedback)
         db.session.commit()
 
         try:
-            feedback.send_mail(subject="微码小窝", recipients=[email],
-                               body="微码小窝已经收到了您的反馈，我们将努力解决这个问题，"
-                                    "感谢您的使用(=^0^=)")
+            feedback.send_mail(body="微码小窝已经收到了您的反馈，我们将努力解决这个问题，感谢您的使用(=^0^=)")
         except BaseException as e:
             print(e)
             return server_error(message="在发送邮件或保存数据的过程中出现了错误，请您稍后重试")

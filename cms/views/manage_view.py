@@ -341,22 +341,46 @@ class ArticleView(Resource):
 
 
 class CMSUserView(Resource):
+    resource_fields = {
+        "code": fields.Integer,  # 状态码
+        "message": fields.String,  # 状态描述
+        "data": fields.Nested({
+            "users": fields.List(fields.Nested({  # 用户信息
+                "uid": fields.String,
+                "role": fields.String,  # 角色
+                "username": fields.String,  # 用户名
+                "display_name": fields.String,  # 昵称, 可以为空
+                "desc": fields.String,  # 个人描述
+                "created": fields.Integer  # 创建时间
+            })),
+            "total": fields.Integer
+        })
+    }
 
     method_decorators = [login_required(Permission.ROOTER)]
 
-    role_mapping = dict(visitor=1, operator=15, admin=63)
+    role_mapping = {
+        Permission.VISITOR: "VISITOR",
+        Permission.OPERATOR: "OPERATOR",
+        Permission.ADMIN: "ADMIN",
+        Permission.ALL_PERMISSION: "DEVELOPER",
+        "VISITOR": Permission.VISITOR,
+        "OPERATOR": Permission.OPERATOR,
+        "ADMIN": Permission.ADMIN,
+        "DEVELOPER": Permission.ALL_PERMISSION
+    }
 
     def get(self):
         offset = request.args.get("offset", 0, type=int)
         limit = request.args.get("limit", 10, type=int)
-        users = CMSUser.query
+        users = CMSUser.query.filter(CMSUser.id != g.user.id)
         total = users.with_entities(func.count(CMSUser.id)).scalar()
         users = users[offset:offset + limit]
-        return OperatorView.generate_response(total, users)
+        return self.generate_response(total, users)
 
     def post(self):
         role = request.form.get("role")
-        if role not in ("visitor", "operator", "admin"):
+        if role not in ("VISITOR", "OPERATOR", "ADMIN"):
             return params_error(message="role错误")
         permission = self.role_mapping.get(role, 1)
 
@@ -370,6 +394,23 @@ class CMSUserView(Resource):
         user.permission = permission
         db.session.commit()
         return success()
+
+    @staticmethod
+    @marshal_with(resource_fields)
+    def generate_response(total, users):
+        resp = Data()
+        resp.total = total
+        resp.users = []
+        for user in users:
+            data = Data()
+            data.uid = user.id
+            data.role = CMSUserView.role_mapping[user.permission]
+            data.created = user.created.timestamp()
+            data.display_name = user.display_name
+            data.username = user.username
+            data.desc = user.desc
+            resp.users.append(data)
+        return Response.success(data=resp)
 
 
 api.add_resource(BoardView, "/board/", endpoint="board")

@@ -72,6 +72,8 @@ class Report(db.Model):
     category = db.Column(db.String(50))
     reason = db.Column(db.Text)
     link_id = db.Column(db.String(50))
+    created = db.Column(db.DateTime, default=datetime.now)
+    status = db.Column(db.Integer, default=1)
 
     user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
 
@@ -82,15 +84,17 @@ class FeedBack(db.Model):
     category = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(50), nullable=True)
     content = db.Column(db.Text, nullable=False)
+    created = db.Column(db.DateTime, default=datetime.now)
+    status = db.Column(db.Integer, default=1)
     images = db.Column(db.Text)
 
-    def send_mail(self, subject, recipients, body):
+    user_id = db.Column(db.String(50), db.ForeignKey("front_user.id"))
+
+    def send_mail(self, body):
         """
         发送邮件
         """
-        if not isinstance(recipients, list):
-            recipients = list(recipients)
-        message = Message(subject=subject, recipients=recipients, body=body)
+        message = Message(subject="微码小窝", recipients=[self.email], body=body)
         mail.send(message)
 
 
@@ -115,6 +119,7 @@ class FrontUser(db.Model):
     likes = db.relationship("Like", backref="user", lazy="dynamic")
     rates = db.relationship("Rate", backref="user", lazy="dynamic")
     reports = db.relationship("Report", backref="user", lazy="dynamic")
+    feedbacks = db.relationship("FeedBack", backref="user", lazy="dynamic")
 
     followed = db.relationship("Follow", foreign_keys=[Follow.follower_id], lazy="dynamic",
                                backref=db.backref("follower", lazy="joined"), cascade="all, delete-orphan")

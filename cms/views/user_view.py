@@ -23,13 +23,20 @@ class LoginView(Resource):
         "data": fields.Nested({
             "token": fields.String,     # token值
             "user": fields.Nested({                 # 用户信息
-                "role": fields.String,              # 角色
+                "role": fields.String,              # 角色权限
                 "username": fields.String,          # 用户名
                 "display_name": fields.String,      # 昵称, 可以为空
                 "desc": fields.String,              # 个人描述
                 "created": fields.Integer           # 创建时间
             })
         })
+    }
+
+    role_mapping = {
+        Permission.VISITOR: "VISITOR",
+        Permission.OPERATOR: "OPERATOR",
+        Permission.ADMIN: "ADMIN",
+        Permission.ALL_PERMISSION: "DEVELOPER"
     }
 
     def get(self):
@@ -87,7 +94,7 @@ class LoginView(Resource):
         resp.token = token
         resp.user = Data()
 
-        resp.user.role = user.role.name
+        resp.user.role = self.role_mapping[user.permission]
         resp.user.created = user.created.timestamp()
         resp.user.display_name = user.display_name
         resp.user.username = user.username
