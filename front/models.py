@@ -69,7 +69,7 @@ class Report(db.Model):
     """
     __tablename__ = "reports"
     id = db.Column(db.String(50), primary_key=True, default=shortuuid.uuid)
-    category = db.Column(db.String(50))
+    category = db.Column(db.Integer)
     reason = db.Column(db.Text)
     link_id = db.Column(db.String(50))
     created = db.Column(db.DateTime, default=datetime.now)
@@ -121,8 +121,10 @@ class FrontUser(db.Model):
     reports = db.relationship("Report", backref="user", lazy="dynamic")
     feedbacks = db.relationship("FeedBack", backref="user", lazy="dynamic")
 
-    followed = db.relationship("Follow", foreign_keys=[Follow.follower_id], lazy="dynamic",
+    # 关注数
+    followeds = db.relationship("Follow", foreign_keys=[Follow.follower_id], lazy="dynamic",
                                backref=db.backref("follower", lazy="joined"), cascade="all, delete-orphan")
+    # 粉丝
     followers = db.relationship("Follow", foreign_keys=[Follow.followed_id], lazy="dynamic",
                                 backref=db.backref("followed", lazy="joined"), cascade="all, delete-orphan")
 
@@ -232,18 +234,18 @@ class FrontUser(db.Model):
         cache.set_pointed(name="queue", key=attr_value["id"], value=new_attr_value, json=True)
 
     def follow(self, user):
-        follow = self.followed.filter_by(followed_id=user.id).first()
+        follow = self.followeds.filter_by(followed_id=user.id).first()
         if not follow:
             follow = Follow(follower=self, followed=user)
             db.session.add(follow)
 
     def unfollow(self, user):
-        follow = self.followed.filter_by(followed_id=user.id).first()
+        follow = self.followeds.filter_by(followed_id=user.id).first()
         if follow:
             db.session.delete(follow)
 
     def is_following(self, user):
-        return self.followed.filter_by(followed_id=user.id).first() is not None
+        return self.followeds.filter_by(followed_id=user.id).first() is not None
 
     def is_followed(self, user):
         return self.followers.filter_by(follower_id=user.id).first() is not None

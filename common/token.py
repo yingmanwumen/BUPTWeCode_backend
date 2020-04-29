@@ -43,6 +43,8 @@ class TokenValidator(object):
             user = self.model.query.get(uid)
             if not user:
                 return False, "该用户不存在"
+            if hasattr(user, "status") and not user.status:
+                return False, "封禁中"
         except (ConnectionError, TimeoutError):
             return False, "缓存炸了"
         except SignatureExpired:
@@ -68,6 +70,8 @@ class login_required(object):
                 if not g.login:
                     if g.message in ("缓存炸了", "数据库炸了"):
                         return restful.server_error(message=g.message)
+                    if g.message == "封禁中":
+                        return restful.block_error(message=g.message)
                     return restful.token_error(message=g.message)
                 if g.user.has_permission(permission=self.permission):
                     return view(*args, **kwargs)

@@ -172,8 +172,30 @@ class WXUserInfoView(Resource):
 
 
 class ProfileView(Resource):
+    resource_fields = {
+        "code": fields.Integer,
+        "message": fields.String,
+        "data": fields.Nested({
+            "username": fields.String,
+            "avatar": fields.String,
+            "gender": fields.Integer,
+            "signature": fields.String,
+            "followers": fields.Integer,
+            "followeds": fields.Integer,
+            "is_followed": fields.Boolean
+        })
+    }
 
     method_decorators = [login_required(Permission.VISITOR)]
+
+    def get(self):
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return params_error(message="缺失用户id")
+        user = FrontUser.query.get(user_id)
+        if not user:
+            return source_error(message="用户不存在")
+        return self.generate_response(user)
 
     def post(self):
         """
@@ -197,8 +219,38 @@ class ProfileView(Resource):
         db.session.commit()
         return success()
 
+    @marshal_with(resource_fields)
+    def generate_response(self, user):
+        resp = Data()
+        resp.username = user.username
+        resp.avatar = user.avatar
+        resp.gender = user.gender
+        resp.signature = user.signature
+        resp.followers = user.followers.count()
+        resp.followeds = user.followeds.count()
+        resp.is_followed = user.is_followed(g.user)
+        return Response.success(data=resp)
+
 
 class FollowView(Resource):
+    resource_fields = {
+        "code": fields.Integer,
+        "message": fields.String,
+        "data": fields.Nested({
+            "followers": fields.List(fields.Nested({
+                "username": fields.String,
+                "avatar": fields.String,
+                "gender": fields.Integer,
+                "uid": fields.String
+            })),
+            "followeds": fields.List(fields.Nested({
+                "username": fields.String,
+                "avatar": fields.String,
+                "gender": fields.Integer,
+                "uid": fields.String
+            }))
+        })
+    }
 
     method_decorators = [login_required(Permission.VISITOR)]
 
@@ -209,23 +261,31 @@ class FollowView(Resource):
         user = FrontUser.query.get(user_id)
         if not user:
             return source_error(message="用户不存在")
-        g.user.follow(user)
+        if user.is_followed(g.user):
+            g.user.unfollow(user)
+        else:
+            g.user.follow(user)
+        db.session.commit()
         return success()
 
+    @marshal_with(resource_fields)
+    def post(self):
+        resp = Data()
+        resp.followers = self.generate_user(g.user.followers, 'follower')
+        resp.followeds = self.generate_user(g.user.followeds, 'followed')
+        return Response.success(data=resp)
 
-class UnFollowView(Resource):
-
-    method_decorators = [login_required(Permission.VISITOR)]
-
-    def get(self):
-        user_id = request.args.get("user_id")
-        if not user_id:
-            return params_error(message="缺失用户id")
-        user = FrontUser.query.get(user_id)
-        if not user:
-            return source_error(message="用户不存在")
-        g.user.unfollow(user)
-        return success()
+    def generate_user(self, follows, attr):
+        res = []
+        for follow in follows:
+            data = Data()
+            user = getattr(follow, attr)
+            data.username = user.username
+            data.gender = user.gender
+            data.avatar = user.avatar
+            data.uid = user.id
+            res.append(data)
+        return res
 
 
 class LikesView(Resource):
@@ -249,9 +309,16 @@ class PostsView(Resource):
     method_decorators = [login_required(Permission.VISITOR)]
 
     def get(self):
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return params_error(message="缺失用户id")
+        user = FrontUser.query.get(user_id)
+        if not user:
+            return source_error(message="用户不存在")
+
         offset = request.args.get("offset", 0, type=int)
         limit = request.args.get("limit", 10, type=int)
-        articles = g.user.articles.filter_by(status=1)
+        articles = user.articles.filter_by(status=1)
         total = articles.with_entities(func.count(Article.id)).scalar()
         articles = articles.order_by(Article.created.desc())[offset: offset + limit]
         return ArticleQueryView.generate_response(articles, total)
@@ -274,7 +341,8 @@ class NotifyView(Resource):
                 "category": fields.Integer,
                 "acceptor_content": fields.String,
                 "link_id": fields.String,
-                "notify_id": fields.String
+                "notify_id": fields.String,
+                "created": fields.Integer
             })),
             "new": fields.Integer,
             "total": fields.Integer
@@ -304,6 +372,7 @@ class NotifyView(Resource):
             data.link_id = notification.link_id
             data.notify_id = notification.id
             data.category = notification.category
+            data.created = notification.created.timestamp()
 
             data.sender = Data()
             data.sender.username = notification.sender.username
@@ -418,8 +487,7 @@ api.add_resource(WXUserInfoView, "/user/", endpoint="wx_user")
 api.add_resource(ProfileView, "/profile/", endpoint="front_user_profile")
 api.add_resource(LikesView, "/likes/", endpoint="front_user_likes")
 api.add_resource(PostsView, "/posts/", endpoint="front_user_posts")
-# api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
-# api.add_resource(UnFollowView, "/unfollow/", endpoint="front_user_unfollow")
+api.add_resource(FollowView, "/follow/", endpoint="front_user_follow")
 api.add_resource(NotifyView, "/notify/", endpoint="front_user_notify")
 api.add_resource(UnNotifyView, "/unnotify/", endpoint="front_user_unnotify")
 api.add_resource(RotationView, "/rotation/", endpoint="front_user_rotation")

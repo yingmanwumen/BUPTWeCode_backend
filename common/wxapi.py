@@ -7,7 +7,6 @@ wx_session = requests.session()
 
 
 def get_user_info(session_key, encrypted_data, iv):
-    print(session_key, encrypted_data, iv)
     return WXBizDataCrypt.get_info(app_id=APP_ID, session_key=session_key, encrypted_data=encrypted_data, iv=iv)
 
 

@@ -9,6 +9,10 @@ def token_error(message, data={}):
     return raw_resp(code=499, message=message, data=data)
 
 
+def block_error(message, data={}):
+    return raw_resp(code=498, message=message, data=data)
+
+
 def success(data={}):
     return raw_resp(code=200, message="OK", data=data)
 
