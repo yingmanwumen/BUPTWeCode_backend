@@ -97,7 +97,7 @@ class Article(db.Model):
         views = self.views
         comments = self.comments.filter_by(status=1).with_entities(func.count(Comment.id)).scalar()
         likes = self.likes.filter_by(status=1).with_entities(func.count(Like.id)).scalar()
-        numerator = math.log(views + 1, math.e) * 4 + comments * likes / 5
+        numerator = math.log(views + 1, math.e) * 4 + (comments + likes) / 5
         return round((numerator / epoch_hours) * 100, 7)
 
 
